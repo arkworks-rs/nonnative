@@ -37,7 +37,7 @@ debug-assertions = false
 
 [dependencies]
 rand = "0.7"
-derivative = "1"
+derivative = "2"
 
 tracing-subscriber = { version = "0.2" }
 tracing = { version = "0.1", default-features = false }
