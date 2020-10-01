@@ -22,7 +22,7 @@ The library makes it possible to write computations over a non-native field in t
 
 ## Usage
 
-Because the non-native field implements the `FieldVar` trait in Arkworks, we can treat it like the native field variables (`FpVar`).
+Because the non-native field implements the `FieldVar` trait in Arkworks, we can treat it like a native field variable (`FpVar`).
 
 We can do the standard field operations, such as `+`, `-`, and `*`. See the following example:
 
@@ -45,8 +45,8 @@ a.enforce_equal(&b)?;
 
 ## Advanced optimization
 
-After each multiplication, our library internally performs a *reduce* operation, which reduces an intermediate type `NonNativeFieldMulResultVar` to the normal type `NonNativeFieldVar`.
-It enables a user to seamlessly perform a sequence of operations without worrying about the underlying details.
+After each multiplication, our library internally performs a *reduce* operation, which reduces an intermediate type `NonNativeFieldMulResultVar` to the normalized type `NonNativeFieldVar`.
+This enables a user to seamlessly perform a sequence of operations without worrying about the underlying details.
 
 However, this operation is expensive and is sometimes avoidable. We can reduce the number of constraints by using this intermediate type, which only supports additions. To multiply, it must be reduced back to `NonNativeFieldVar`. See below for a skeleton example. 
 
@@ -60,7 +60,7 @@ let c_times_d = &c * &d;
 let res = &a_times_b + &c_times_d;
 ```
 
-It performs two *reduce* operations in total, one for each multiplication.
+This performs two *reduce* operations in total, one for each multiplication.
 
 ---
 
@@ -72,19 +72,19 @@ let c_times_d = c.mul_without_reduce(&d)?;
 let res = (&a_times_b + &c_times_d)?.reduce()?;
 ```
 
-It performs only one *reduce* operations and is roughly 2x faster than the first implementation.
+It performs only one *reduce* operation and is roughly 2x faster than the first implementation.
 
 ## Limitations
 
 Our implementation does not support arbitrary combinations of prime fields. 
 
-If the base field is drastically smaller than the target field, the program may fail to find good parameters. Even if such parameters are found, they are likely inefficient.
+If the base field is drastically smaller than the target field, the program may fail to find good parameters, and even if such parameters are found, they are likely to result in inefficient constraint generation.
 
 
 
 ## Inspiration and Basic Design
 
-The library employs the standard ideas of using multiple **limbs** to represent an element of the target field. For example, an element in the TargetField may be represented by three BaseField elements (i.e., the limbs).
+The library employs the standard idea of using multiple **limbs** to represent an element of the target field. For example, an element in the TargetField may be represented by three BaseField elements (i.e., the limbs).
 
 ```
 TargetField -> limb 1, limb 2, and limb 3 (each is a BaseField element)
@@ -107,11 +107,11 @@ Unless you explicitly state otherwise, any contribution submitted for inclusion 
 
 ## References
 
-[Hopwood19]: https://github.com/zcash/zcash/issues/4093 "D. Hopwood, Implementing Fp arithmetic in an Fq circuit, 2019.
+[Hopwood19]: https://github.com/zcash/zcash/issues/4093 "D. Hopwood, Implementing Fp arithmetic in an Fq circuit", 2019.
 
-[KosbaPS18]: A. E. Kosba, C. Papamanthou, and E. Shi. “xJsnark: a framework for efficient verifiable computation,” in *Proceedings of the 39th Symposium on Security and Privacy*, ser. S&P ’18, 2018, pp. 944–961.
+[KosbaPS18]: A. E. Kosba, C. Papamanthou, and E. Shi. "xJsnark: a framework for efficient verifiable computation," in *Proceedings of the 39th Symposium on Security and Privacy*, ser. S&P ’18, 2018, pp. 944–961.
 
-[OzdemirWWB20]: A. Ozdemir, R. S. Wahby, B. Whitehat, and D. Boneh. “Scaling verifiable computation using efficient set accumulators,” in Proceedings of the 29th USENIX Security Symposium, ser. Security ’20, 2020.
+[OzdemirWWB20]: A. Ozdemir, R. S. Wahby, B. Whitehat, and D. Boneh. "Scaling verifiable computation using efficient set accumulators," in Proceedings of the 29th USENIX Security Symposium, ser. Security ’20, 2020.
 
 [KawamuraH88]: S. Kawamiura and K. Hirano. "A Fast Modular Arithmetic Algorithm Using a Residue Table," in Advances in Cryptology, in *Advances in Cryptology*, ser. Eurocrypt '88, 1988, pp. 245-250.
 
