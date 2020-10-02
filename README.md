@@ -15,14 +15,14 @@ The library is based on the constraint-writing framework [arkworks-rs](https://g
 
 This library implements a field gadget for a prime field `Fp` over another prime field `Fq` where `p != q`.
 
-When writing constraint systems for pairing-based proofs, we are traditionally restricted to the native field (the scalar field of the pairing-friendly curve).
+When writing constraint systems for many cryptographic proofs, we are restricted to a native field (e.g., the scalar field of the pairing-friendly curve).
 This can be inconvenient; for example, the recursive composition of proofs via cycles of curves requires the verifier to compute over a non-native field.
 
 The library makes it possible to write computations over a non-native field in the same way one would write computations over the native field. This naturally introduces additional overhead, which we minimize using a variety of optimizations.
 
 ## Usage
 
-Because the non-native field implements the `FieldVar` trait in Arkworks, we can treat it like a native field variable (`FpVar`).
+Because the non-native field implements the `FieldVar` trait in arkworks, we can treat it like a native field variable (`FpVar`).
 
 We can do the standard field operations, such as `+`, `-`, and `*`. See the following example:
 
@@ -78,11 +78,10 @@ It performs only one *reduce* operation and is roughly 2x faster than the first 
 
 Our implementation does not support arbitrary combinations of prime fields. 
 
-If the base field is drastically smaller than the target field, the program may fail to find good parameters, and even if such parameters are found, they are likely to result in inefficient constraint generation.
+If the base field is drastically smaller than the target field, the program may fail to find good parameters, and even if such parameters are found, they are likely to result in inefficient constraint generation. [TODO: say that for more information see a specific file, which includes a longer discussion]
 
 
-
-## Inspiration and Basic Design
+## Inspiration and basic design
 
 The library employs the standard idea of using multiple **limbs** to represent an element of the target field. For example, an element in the TargetField may be represented by three BaseField elements (i.e., the limbs).
 
@@ -92,7 +91,7 @@ TargetField -> limb 1, limb 2, and limb 3 (each is a BaseField element)
 
 After some computation, the limbs become overwhelmed and need to be **reduced**, in order to engage in more computation.
 
-Our basic idea is the **sum-of-residues** method described by  [[KawamuraH88]](https://doi.org/10.1007/3-540-45961-8_21) and [[FindlayJ89]](https://doi.org/10.1007/0-387-34805-0_35). Then, we implement Hopwood's novel idea of unbalanced limbs described in [[Hopwood19]](https://github.com/zcash/zcash/issues/4093), which can reduce the number of constraints. 
+We use the **sum-of-residues** method described by [[KawamuraH88]](https://doi.org/10.1007/3-540-45961-8_21) and [[FindlayJ89]](https://doi.org/10.1007/0-387-34805-0_35). Then, we implement Hopwood's idea of unbalanced limbs described in [[Hopwood19]](https://github.com/zcash/zcash/issues/4093), which can reduce the number of constraints. 
 
 Separately, we incorporate an optimization in multiplication from [[KosbaPS18]](https://akosba.github.io/papers/xjsnark.pdf). This work addresses a similar issue, the use of long-integer arithmetic within proofs, and provides [an open-source implementation](https://github.com/akosba/xjsnark). Another related work [[OzdemirWWB20]](https://eprint.iacr.org/2019/1494) also open-sources [an implementation](https://github.com/alex-ozdemir/bellman-bignat) for multiprecision arithmetic and RSA accumulators in proof systems, built off the Bellman system.
 
@@ -107,12 +106,13 @@ Unless you explicitly state otherwise, any contribution submitted for inclusion 
 
 ## References
 
-[Hopwood19]: https://github.com/zcash/zcash/issues/4093 "D. Hopwood, Implementing Fp arithmetic in an Fq circuit", 2019.
+[FJ89]: P. A. Findlay and B. A. Johnson. "Modular Exponentiation Using Recursive Sums of Residues," in Advances in Cryptology, in *Advances in Cryptology*, ser. CRYPTO '89, 1989, pp. 371-386.
 
-[KosbaPS18]: A. E. Kosba, C. Papamanthou, and E. Shi. "xJsnark: a framework for efficient verifiable computation," in *Proceedings of the 39th Symposium on Security and Privacy*, ser. S&P ’18, 2018, pp. 944–961.
+[H19]: https://github.com/zcash/zcash/issues/4093 D. Hopwood, "Implementing Fp arithmetic in an Fq circuit", 2019.
 
-[OzdemirWWB20]: A. Ozdemir, R. S. Wahby, B. Whitehat, and D. Boneh. "Scaling verifiable computation using efficient set accumulators," in Proceedings of the 29th USENIX Security Symposium, ser. Security ’20, 2020.
+[KH88]: S. Kawamiura and K. Hirano. "A Fast Modular Arithmetic Algorithm Using a Residue Table," in Advances in Cryptology, in *Advances in Cryptology*, ser. Eurocrypt '88, 1988, pp. 245-250.
 
-[KawamuraH88]: S. Kawamiura and K. Hirano. "A Fast Modular Arithmetic Algorithm Using a Residue Table," in Advances in Cryptology, in *Advances in Cryptology*, ser. Eurocrypt '88, 1988, pp. 245-250.
+[KPS18]: A. E. Kosba, C. Papamanthou, and E. Shi. "xJsnark: a framework for efficient verifiable computation," in *Proceedings of the 39th Symposium on Security and Privacy*, ser. S&P ’18, 2018, pp. 944–961.
 
-[FindlayJ89]: P. A. Findlay and B. A. Johnson. "Modular Exponentiation Using Recursive Sums of Residues," in Advances in Cryptology, in *Advances in Cryptology*, ser. CRYPTO '89, 1989, pp. 371-386.
+[OWWB20]: A. Ozdemir, R. S. Wahby, B. Whitehat, and D. Boneh. "Scaling verifiable computation using efficient set accumulators," in Proceedings of the 29th USENIX Security Symposium, ser. Security ’20, 2020.
+
