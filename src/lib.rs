@@ -19,7 +19,7 @@
 //! The Python script mentioned above can be found in the subdirectory `scripts`.
 
 #[macro_use]
-extern crate r1cs_std;
+extern crate ark_r1cs_std;
 
 use crate::params::{gen_params, get_params};
 use crate::reduce::Reducer;
@@ -27,8 +27,8 @@ use ark_ff::PrimeField;
 use ark_ff::{to_bytes, BigInteger};
 use core::{borrow::Borrow, cmp::max, fmt::Debug, marker::PhantomData};
 use ark_relations::{lc, r1cs::{ConstraintSystemRef, LinearCombination, Namespace, SynthesisError}};
-use r1cs_std::fields::fp::FpVar;
-use r1cs_std::{
+use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::{
     bits::{ToBitsGadget, ToBytesGadget},
     boolean::Boolean,
     eq::EqGadget,
@@ -989,7 +989,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> ToBitsGadget<BaseField>
 
     #[tracing::instrument(target = "r1cs")]
     fn to_non_unique_bits_le(&self) -> Result<Vec<Boolean<BaseField>>, SynthesisError> {
-        use algebra::BitIteratorLE;
+        use ark_ff::BitIteratorLE;
         match self {
             Self::Constant(c) => Ok(BitIteratorLE::without_trailing_zeros(&c.into_repr())
                 .map(Boolean::constant)

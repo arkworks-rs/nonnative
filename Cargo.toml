@@ -42,15 +42,13 @@ derivative = "2"
 tracing-subscriber = { version = "0.2" }
 tracing = { version = "0.1", default-features = false }
 
-ark-ff = { git = "https://github.com/arkworks-rs/algebra" }
-ark-ec = { git = "https://github.com/arkworks-rs/algebra" }
-ark-poly = { git = "https://github.com/arkworks-rs/algebra" }
-ark-serialize = { git = "https://github.com/arkworks-rs/algebra" }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
+ark-std = { git = "https://github.com/arkworks-rs/utils", default-features = false }
+ark-relations = { git = "https://github.com/arkworks-rs/snark", branch = "snark-trait", default-features = false }
 
-ark-snark = { git = "https://github.com/arkworks-rs/snark" }
-ark-relations = { git = "https://github.com/arkworks-rs/snark" }
-r1cs-std = { git = "ssh://git@github.com/arkworks-rs/r1cs-std.git" }
-crypto-primitives = { git = "ssh://git@github.com/arkworks-rs/r1cs-std.git" }
+ark-r1cs-std = { path = "../r1cs-std/r1cs-std" }
+crypto-primitives = { path = "../r1cs-std/crypto-primitives" }
 
 rand_core = { version = "0.5" }
 num-traits = { version = "0.2", default-features = false }

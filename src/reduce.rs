@@ -8,9 +8,9 @@ use core::{
 };
 use num_bigint::BigUint;
 use ark_relations::{lc, r1cs::{LinearCombination, SynthesisError}};
-use r1cs_std::alloc::AllocVar;
-use r1cs_std::fields::fp::AllocatedFp;
-use r1cs_std::{
+use ark_r1cs_std::alloc::AllocVar;
+use ark_r1cs_std::fields::fp::AllocatedFp;
+use ark_r1cs_std::{
     boolean::{AllocatedBit, Boolean},
     R1CSVar,
 };
@@ -89,7 +89,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
         let mut bits = vec![];
         for b in bits_considered.into_iter() {
             bits.push(AllocatedBit::new_witness(
-                r1cs_core::ns!(cs, "bit"),
+                ark_relations::ns!(cs, "bit"),
                 || Ok(b),
             )?);
         }
@@ -311,7 +311,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
                 coeff.double_in_place();
             }
 
-            add = AllocatedFp::<BaseField>::new_witness(r1cs_core::ns!(cs, "alloc_add"), || {
+            add = AllocatedFp::<BaseField>::new_witness(ark_relations::ns!(cs, "alloc_add"), || {
                 Ok(add_value)
             })?;
 
@@ -503,7 +503,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
         let mut new_limbs_gadget = Vec::<AllocatedFp<BaseField>>::new();
         for (value, lc) in limbs_value.iter().zip(limbs_lc.iter()) {
             let value_gadget = AllocatedFp::<BaseField>::new_witness(
-                r1cs_core::ns!(cs, "limb_initial_value_alloc"),
+                ark_relations::ns!(cs, "limb_initial_value_alloc"),
                 || Ok(value),
             )?;
 

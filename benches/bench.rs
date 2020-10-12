@@ -1,9 +1,9 @@
-use algebra::{bls12_381, mnt4_298, mnt4_753, mnt6_298, mnt6_753};
+use curves::{bls12_381, mnt4_298, mnt4_753, mnt6_298, mnt6_753};
 use ark_ff::PrimeField;
 use crate::NonNativeFieldVar;
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
-use r1cs_std::eq::EqGadget;
-use r1cs_std::fields::FieldVar;
+use ark_r1cs_std::eq::EqGadget;
+use ark_r1cs_std::fields::FieldVar;
 use rand::thread_rng;
 use rand_core::RngCore;
 

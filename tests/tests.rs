@@ -1,11 +1,10 @@
 use algebra::{bls12_381, mnt4_298, mnt4_753, mnt6_298, mnt6_753, PrimeField};
 use nonnative::params::HitRate;
 use nonnative::NonNativeFieldVar;
-use r1cs_core::{ConstraintSystem, ConstraintSystemRef};
-use r1cs_std::alloc::AllocVar;
-use r1cs_std::eq::EqGadget;
-use r1cs_std::fields::FieldVar;
-use r1cs_std::R1CSVar;
+use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
+use r1cs_std::{
+    alloc::AllocVar, eq::EqGadget, fields::FieldVar, R1CSVar
+};
 use rand::thread_rng;
 use rand_core::RngCore;
 
@@ -18,7 +17,7 @@ fn allocation_test<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
 ) {
     let a_native = TargetField::rand(rng);
     let a = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc a"),
+        ark_relations::ns!(cs, "alloc a"),
         || Ok(a_native),
     )
     .unwrap();
@@ -37,14 +36,14 @@ fn addition_test<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
 ) {
     let a_native = TargetField::rand(rng);
     let a = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc a"),
+        ark_relations::ns!(cs, "alloc a"),
         || Ok(a_native),
     )
     .unwrap();
 
     let b_native = TargetField::rand(rng);
     let b = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc b"),
+        ark_relations::ns!(cs, "alloc b"),
         || Ok(b_native),
     )
     .unwrap();
@@ -62,14 +61,14 @@ fn multiplication_test<TargetField: PrimeField, BaseField: PrimeField, R: RngCor
 ) {
     let a_native = TargetField::rand(rng);
     let a = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc a"),
+        ark_relations::ns!(cs, "alloc a"),
         || Ok(a_native),
     )
     .unwrap();
 
     let b_native = TargetField::rand(rng);
     let b = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc b"),
+        ark_relations::ns!(cs, "alloc b"),
         || Ok(b_native),
     )
     .unwrap();
@@ -94,14 +93,14 @@ fn equality_test<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
 ) {
     let a_native = TargetField::rand(rng);
     let a = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc a"),
+        ark_relations::ns!(cs, "alloc a"),
         || Ok(a_native),
     )
     .unwrap();
 
     let b_native = TargetField::rand(rng);
     let b = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc b"),
+        ark_relations::ns!(cs, "alloc b"),
         || Ok(b_native),
     )
     .unwrap();
@@ -110,7 +109,7 @@ fn equality_test<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
 
     let a_times_b_expected = a_native * &b_native;
     let a_times_b_expected_gadget = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc a * b"),
+        ark_relations::ns!(cs, "alloc a * b"),
         || Ok(a_times_b_expected),
     )
     .unwrap();
@@ -129,7 +128,7 @@ fn edge_cases_test<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
     let a_native = TargetField::rand(rng);
     let minus_a_native = TargetField::zero() - &a_native;
     let a = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc a"),
+        ark_relations::ns!(cs, "alloc a"),
         || Ok(a_native),
     )
     .unwrap();
@@ -224,17 +223,17 @@ fn distribution_law_test<TargetField: PrimeField, BaseField: PrimeField, R: RngC
     );
 
     let a =
-        NonNativeFieldVar::<TargetField, BaseField>::new_witness(r1cs_core::ns!(cs, "a"), || {
+        NonNativeFieldVar::<TargetField, BaseField>::new_witness(ark_relations::ns!(cs, "a"), || {
             Ok(a_native)
         })
         .unwrap();
     let b =
-        NonNativeFieldVar::<TargetField, BaseField>::new_witness(r1cs_core::ns!(cs, "b"), || {
+        NonNativeFieldVar::<TargetField, BaseField>::new_witness(ark_relations::ns!(cs, "b"), || {
             Ok(b_native)
         })
         .unwrap();
     let c =
-        NonNativeFieldVar::<TargetField, BaseField>::new_witness(r1cs_core::ns!(cs, "c"), || {
+        NonNativeFieldVar::<TargetField, BaseField>::new_witness(ark_relations::ns!(cs, "c"), || {
             Ok(c_native)
         })
         .unwrap();
@@ -288,14 +287,14 @@ fn randomized_arithmetic_test<TargetField: PrimeField, BaseField: PrimeField, R:
 
     let mut num_native = TargetField::rand(rng);
     let mut num = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "initial num"),
+        ark_relations::ns!(cs, "initial num"),
         || Ok(num_native),
     )
     .unwrap();
     for op in operations.iter() {
         let next_native = TargetField::rand(rng);
         let next = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            r1cs_core::ns!(cs, "next num for repetition"),
+            ark_relations::ns!(cs, "next num for repetition"),
             || Ok(next_native),
         )
         .unwrap();
@@ -328,12 +327,12 @@ fn addition_stress_test<TargetField: PrimeField, BaseField: PrimeField, R: RngCo
 ) {
     let mut num_native = TargetField::rand(rng);
     let mut num =
-        NonNativeFieldVar::new_witness(r1cs_core::ns!(cs, "initial num"), || Ok(num_native))
+        NonNativeFieldVar::new_witness(ark_relations::ns!(cs, "initial num"), || Ok(num_native))
             .unwrap();
     for _ in 0..TEST_COUNT {
         let next_native = TargetField::rand(rng);
         let next = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            r1cs_core::ns!(cs, format!("next num for repetition {}", rep)),
+            ark_relations::ns!(cs, format!("next num for repetition {}", rep)),
             || Ok(next_native),
         )
         .unwrap();
@@ -350,14 +349,14 @@ fn multiplication_stress_test<TargetField: PrimeField, BaseField: PrimeField, R:
 ) {
     let mut num_native = TargetField::rand(rng);
     let mut num = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "initial num"),
+        ark_relations::ns!(cs, "initial num"),
         || Ok(num_native),
     )
     .unwrap();
     for _ in 0..TEST_COUNT {
         let next_native = TargetField::rand(rng);
         let next = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            r1cs_core::ns!(cs, format!("next num for repetition {}", rep)),
+            ark_relations::ns!(cs, format!("next num for repetition {}", rep)),
             || Ok(next_native),
         )
         .unwrap();
@@ -374,20 +373,20 @@ fn mul_and_add_stress_test<TargetField: PrimeField, BaseField: PrimeField, R: Rn
 ) {
     let mut num_native = TargetField::rand(rng);
     let mut num = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "initial num"),
+        ark_relations::ns!(cs, "initial num"),
         || Ok(num_native),
     )
     .unwrap();
     for _ in 0..TEST_COUNT {
         let next_add_native = TargetField::rand(rng);
         let next_add = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            r1cs_core::ns!(cs, format!("next to add num for repetition {}", rep)),
+            ark_relations::ns!(cs, format!("next to add num for repetition {}", rep)),
             || Ok(next_add_native),
         )
         .unwrap();
         let next_mul_native = TargetField::rand(rng);
         let next_mul = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            r1cs_core::ns!(cs, format!("next to mul num for repetition {}", rep)),
+            ark_relations::ns!(cs, format!("next to mul num for repetition {}", rep)),
             || Ok(next_mul_native),
         )
         .unwrap();
@@ -405,20 +404,20 @@ fn square_mul_add_stress_test<TargetField: PrimeField, BaseField: PrimeField, R:
 ) {
     let mut num_native = TargetField::rand(rng);
     let mut num = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "initial num"),
+        ark_relations::ns!(cs, "initial num"),
         || Ok(num_native),
     )
     .unwrap();
     for _ in 0..TEST_COUNT {
         let next_add_native = TargetField::rand(rng);
         let next_add = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            r1cs_core::ns!(cs, format!("next to add num for repetition {}", rep)),
+            ark_relations::ns!(cs, format!("next to add num for repetition {}", rep)),
             || Ok(next_add_native),
         )
         .unwrap();
         let next_mul_native = TargetField::rand(rng);
         let next_mul = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            r1cs_core::ns!(cs, format!("next to mul num for repetition {}", rep)),
+            ark_relations::ns!(cs, format!("next to mul num for repetition {}", rep)),
             || Ok(next_mul_native),
         )
         .unwrap();
@@ -436,7 +435,7 @@ fn double_stress_test_1<TargetField: PrimeField, BaseField: PrimeField, R: RngCo
 ) {
     let mut num_native = TargetField::rand(rng);
     let mut num = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "initial num"),
+        ark_relations::ns!(cs, "initial num"),
         || Ok(num_native),
     )
     .unwrap();
@@ -456,7 +455,7 @@ fn double_stress_test_2<TargetField: PrimeField, BaseField: PrimeField, R: RngCo
 ) {
     let mut num_native = TargetField::rand(rng);
     let mut num = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "initial num"),
+        ark_relations::ns!(cs, "initial num"),
         || Ok(num_native),
     )
     .unwrap();
@@ -480,7 +479,7 @@ fn double_stress_test_3<TargetField: PrimeField, BaseField: PrimeField, R: RngCo
 ) {
     let mut num_native = TargetField::rand(rng);
     let mut num = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "initial num"),
+        ark_relations::ns!(cs, "initial num"),
         || Ok(num_native),
     )
     .unwrap();
@@ -495,7 +494,7 @@ fn double_stress_test_3<TargetField: PrimeField, BaseField: PrimeField, R: RngCo
         let num_square_native = num_native * &num_native;
         let num_square = &num * &num;
         let num_square_native_gadget = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            r1cs_core::ns!(cs, format!("repetition {}: alloc_native num", rep)),
+            ark_relations::ns!(cs, format!("repetition {}: alloc_native num", rep)),
             || Ok(num_square_native),
         )
         .unwrap();
@@ -511,7 +510,7 @@ fn inverse_stress_test<TargetField: PrimeField, BaseField: PrimeField, R: RngCor
     for _ in 0..TEST_COUNT {
         let num_native = TargetField::rand(rng);
         let num = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            r1cs_core::ns!(cs, "num"),
+            ark_relations::ns!(cs, "num"),
             || Ok(num_native),
         )
         .unwrap();
