@@ -23,10 +23,10 @@ extern crate r1cs_std;
 
 use crate::params::{gen_params, get_params};
 use crate::reduce::Reducer;
-use algebra::PrimeField;
-use algebra_core::{to_bytes, BigInteger};
+use ark_ff::PrimeField;
+use ark_ff::{to_bytes, BigInteger};
 use core::{borrow::Borrow, cmp::max, fmt::Debug, marker::PhantomData};
-use r1cs_core::{lc, ConstraintSystemRef, LinearCombination, Namespace, SynthesisError};
+use ark_relations::{lc, r1cs::{ConstraintSystemRef, LinearCombination, Namespace, SynthesisError}};
 use r1cs_std::fields::fp::FpVar;
 use r1cs_std::{
     bits::{ToBitsGadget, ToBytesGadget},
@@ -445,7 +445,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
         let mut prod_limbs: Vec<AllocatedFp<BaseField>> = Vec::new();
         for z_i in z.iter() {
             prod_limbs.push(AllocatedFp::new_witness(
-                r1cs_core::ns!(self.cs, "limb product"),
+                ark_relations::ns!(self.cs, "limb product"),
                 || Ok(z_i),
             )?);
         }
@@ -762,7 +762,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> AllocVar<TargetField, BaseF
 
         for limb in elem_representations.iter() {
             limbs.push(AllocatedFp::<BaseField>::new_variable(
-                r1cs_core::ns!(cs, "alloc"),
+                ark_relations::ns!(cs, "alloc"),
                 || Ok(limb),
                 mode,
             )?);
@@ -1306,7 +1306,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
         let mut sum_gadget = Vec::<AllocatedFp<BaseField>>::new();
         for i in 0..num_limbs {
             sum_gadget.push(AllocatedFp::<BaseField>::new_witness(
-                r1cs_core::ns!(cs, "alloc_sum"),
+                ark_relations::ns!(cs, "alloc_sum"),
                 || Ok(sum[i].clone()),
             )?);
         }

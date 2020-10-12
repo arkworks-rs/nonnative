@@ -42,11 +42,17 @@ derivative = "2"
 tracing-subscriber = { version = "0.2" }
 tracing = { version = "0.1", default-features = false }
 
-algebra = { git = "https://github.com/weikengchen/zexe/", default-features = false, features = [ "bls12_381", "mnt4_298", "mnt4_753", "mnt6_298", "mnt6_753" ] }
-algebra-core = { git = "https://github.com/weikengchen/zexe/" }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra" }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra" }
+ark-poly = { git = "https://github.com/arkworks-rs/algebra" }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra" }
+
+ark-snark = { git = "https://github.com/arkworks-rs/snark" }
+ark-relations = { git = "https://github.com/arkworks-rs/snark" }
+r1cs-std = { git = "ssh://git@github.com/arkworks-rs/r1cs-std.git" }
+crypto-primitives = { git = "ssh://git@github.com/arkworks-rs/r1cs-std.git" }
+
 rand_core = { version = "0.5" }
-r1cs-core = { git = "https://github.com/weikengchen/zexe/" }
-r1cs-std = { git = "https://github.com/weikengchen/zexe/" }
 num-traits = { version = "0.2", default-features = false }
 num-bigint = "0.3.0"
 

@@ -1,10 +1,10 @@
 use crate::NonNativeFieldParams;
-use algebra_core::{BTreeMap, PrimeField};
+use ark_ff::{BTreeMap, PrimeField};
 use core::{
     any::{Any, TypeId},
     cmp::min,
 };
-use r1cs_core::ConstraintSystemRef;
+use ark_relations::r1cs::ConstraintSystemRef;
 
 /// The type for a cache map for parameters
 pub type ParamsMap = BTreeMap<(usize, usize), NonNativeFieldParams>;

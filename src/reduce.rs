@@ -1,13 +1,13 @@
 use crate::params::get_params;
 use crate::{overhead, AllocatedNonNativeFieldVar};
-use algebra::{One, PrimeField, Zero};
-use algebra_core::{biginteger::BigInteger, fields::FpParameters, BitIteratorBE};
+use ark_ff::{One, PrimeField, Zero};
+use ark_ff::{biginteger::BigInteger, fields::FpParameters, BitIteratorBE};
 use core::{
     cmp::{max, min},
     marker::PhantomData,
 };
 use num_bigint::BigUint;
-use r1cs_core::{lc, LinearCombination, SynthesisError};
+use ark_relations::{lc, r1cs::{LinearCombination, SynthesisError}};
 use r1cs_std::alloc::AllocVar;
 use r1cs_std::fields::fp::AllocatedFp;
 use r1cs_std::{

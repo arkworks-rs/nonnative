@@ -1,8 +1,7 @@
 use algebra::{bls12_381, mnt4_298, mnt4_753, mnt6_298, mnt6_753};
-use algebra_core::PrimeField;
-use nonnative::NonNativeFieldVar;
-use r1cs_core::{ConstraintSystem, ConstraintSystemRef};
-use r1cs_std::alloc::AllocVar;
+use ark_ff::PrimeField;
+use crate::NonNativeFieldVar;
+use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use r1cs_std::eq::EqGadget;
 use r1cs_std::fields::FieldVar;
 use rand::thread_rng;
@@ -18,7 +17,7 @@ fn allocation<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
 
     let before = cs.num_constraints();
     // there will be a check that ensures it has the reasonable number of bits
-    NonNativeFieldVar::<TargetField, BaseField>::new_witness(r1cs_core::ns!(cs, "alloc a"), || {
+    NonNativeFieldVar::<TargetField, BaseField>::new_witness(ark_relations::ns!(cs, "alloc a"), || {
         Ok(a_native)
     })
     .unwrap();
@@ -33,14 +32,14 @@ fn addition<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
 ) -> usize {
     let a_native = TargetField::rand(rng);
     let a = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc a"),
+        ark_relations::ns!(cs, "alloc a"),
         || Ok(a_native),
     )
     .unwrap();
 
     let b_native = TargetField::rand(rng);
     let b = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc b"),
+        ark_relations::ns!(cs, "alloc b"),
         || Ok(b_native),
     )
     .unwrap();
@@ -58,12 +57,12 @@ fn equality<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
 ) -> usize {
     let a_native = TargetField::rand(rng);
     let a1 = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc a1"),
+        ark_relations::ns!(cs, "alloc a1"),
         || Ok(a_native),
     )
     .unwrap();
     let a2 = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc a2"),
+        ark_relations::ns!(cs, "alloc a2"),
         || Ok(a_native),
     )
     .unwrap();
@@ -81,14 +80,14 @@ fn multiplication<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
 ) -> usize {
     let a_native = TargetField::rand(rng);
     let a = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "initial a"),
+        ark_relations::ns!(cs, "initial a"),
         || Ok(a_native),
     )
     .unwrap();
 
     let b_native = TargetField::rand(rng);
     let b = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "initial b"),
+        ark_relations::ns!(cs, "initial b"),
         || Ok(b_native),
     )
     .unwrap();
@@ -106,7 +105,7 @@ fn inverse<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
 ) -> usize {
     let num_native = TargetField::rand(rng);
     let num = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
-        r1cs_core::ns!(cs, "alloc"),
+        ark_relations::ns!(cs, "alloc"),
         || Ok(num_native),
     )
     .unwrap();
