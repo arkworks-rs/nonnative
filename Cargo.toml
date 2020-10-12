@@ -47,8 +47,8 @@ ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = fa
 ark-std = { git = "https://github.com/arkworks-rs/utils", default-features = false }
 ark-relations = { git = "https://github.com/arkworks-rs/snark", branch = "snark-trait", default-features = false }
 
-ark-r1cs-std = { path = "../r1cs-std/r1cs-std" }
-crypto-primitives = { path = "../r1cs-std/crypto-primitives" }
+ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std", branch = "udpate-to-ark" }
+crypto-primitives = { git = "https://github.com/arkworks-rs/r1cs-std", branch = "udpate-to-ark" }
 
 rand_core = { version = "0.5" }
 num-traits = { version = "0.2", default-features = false }
