@@ -45,10 +45,10 @@ tracing = { version = "0.1", default-features = false }
 ark-ff = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = false }
 ark-std = { git = "https://github.com/arkworks-rs/utils", default-features = false }
-ark-relations = { git = "https://github.com/arkworks-rs/snark", branch = "snark-trait", default-features = false }
+ark-relations = { git = "https://github.com/arkworks-rs/snark", default-features = false }
 
 ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std", branch = "update-to-ark" }
-crypto-primitives = { git = "https://github.com/arkworks-rs/r1cs-std", branch = "update-to-ark" }
+crypto-primitives = { git = "https://github.com/arkworks-rs/crypto-primitives" }
 
 rand_core = { version = "0.5" }
 num-traits = { version = "0.2", default-features = false }
