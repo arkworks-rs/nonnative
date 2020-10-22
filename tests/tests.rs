@@ -5,6 +5,7 @@ use ark_mnt6_298::MNT6_298;
 use ark_mnt6_753::MNT6_753;
 use ark_ff::PrimeField;
 use ark_ec::PairingEngine;
+
 use nonnative::NonNativeFieldVar;
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
 use ark_r1cs_std::{
@@ -654,10 +655,10 @@ macro_rules! nonnative_test {
     };
 }
 
-nonnative_test!(MNT46Small, MNT4_298::Fr, MNT6_298::Fr);
-nonnative_test!(MNT64Small, MNT6_298::Fr, MNT4_298::Fr);
-nonnative_test!(MNT46Big, MNT4_753::Fr, MNT6_753::Fr);
-nonnative_test!(MNT64Big, MNT6_753::Fr, MNT4_753::Fr);
-nonnative_test!(BLS12MNT4Small, Bls12_381::Fr, MNT4_298::Fr);
-nonnative_test!(BLS12, Bls12_381::Fq, Bls12_381::Fr);
-nonnative_test!(MNT6BigMNT4Small, MNT6_753::Fr, MNT4_298::Fr);
+nonnative_test!(MNT46Small, <MNT4_298 as PairingEngine>::Fr, <MNT6_298 as PairingEngine>::Fr);
+nonnative_test!(MNT64Small, <MNT6_298 as PairingEngine>::Fr, <MNT4_298 as PairingEngine>::Fr);
+nonnative_test!(MNT46Big, <MNT4_753 as PairingEngine>::Fr, <MNT6_753 as PairingEngine>::Fr);
+nonnative_test!(MNT64Big, <MNT6_753 as PairingEngine>::Fr, <MNT4_753 as PairingEngine>::Fr);
+nonnative_test!(BLS12MNT4Small, <Bls12_381 as PairingEngine>::Fr, <MNT4_298 as PairingEngine>::Fr);
+nonnative_test!(BLS12, <Bls12_381 as PairingEngine>::Fq, <Bls12_381 as PairingEngine>::Fr);
+nonnative_test!(MNT6BigMNT4Small, <MNT6_753 as PairingEngine>::Fr, <MNT4_298 as PairingEngine>::Fr);
