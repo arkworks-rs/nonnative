@@ -54,7 +54,7 @@ ark-mnt6-298 = { git = "https://github.com/arkworks-rs/curves" }
 ark-mnt6-753 = { git = "https://github.com/arkworks-rs/curves" }
 
 ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std" }
-crypto-primitives = { git = "https://github.com/arkworks-rs/crypto-primitives" }
+ark-crypto-primitives = { git = "https://github.com/arkworks-rs/crypto-primitives", branch = "add-cp-benches" }
 
 rand_core = { version = "0.5" }
 num-traits = { version = "0.2", default-features = false }
