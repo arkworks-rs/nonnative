@@ -1,19 +1,22 @@
 use crate::params::get_params;
 use crate::{overhead, AllocatedNonNativeFieldVar};
-use ark_ff::{One, PrimeField, Zero};
 use ark_ff::{biginteger::BigInteger, fields::FpParameters, BitIteratorBE};
-use core::{
-    cmp::{max, min},
-    marker::PhantomData,
-};
-use num_bigint::BigUint;
-use ark_relations::{lc, r1cs::{LinearCombination, SynthesisError}};
+use ark_ff::{One, PrimeField, Zero};
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::AllocatedFp;
 use ark_r1cs_std::{
     boolean::{AllocatedBit, Boolean},
     R1CSVar,
 };
+use ark_relations::{
+    lc,
+    r1cs::{LinearCombination, SynthesisError},
+};
+use core::{
+    cmp::{max, min},
+    marker::PhantomData,
+};
+use num_bigint::BigUint;
 
 /// the collections of methods for reducing the presentations
 pub struct Reducer<TargetField: PrimeField, BaseField: PrimeField> {
@@ -311,9 +314,10 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
                 coeff.double_in_place();
             }
 
-            add = AllocatedFp::<BaseField>::new_witness(ark_relations::ns!(cs, "alloc_add"), || {
-                Ok(add_value)
-            })?;
+            add =
+                AllocatedFp::<BaseField>::new_witness(ark_relations::ns!(cs, "alloc_add"), || {
+                    Ok(add_value)
+                })?;
 
             let add_lc = LinearCombination::from((BaseField::one(), add.variable));
 

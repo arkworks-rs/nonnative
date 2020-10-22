@@ -1,16 +1,14 @@
 use ark_bls12_381::Bls12_381;
+use ark_ec::PairingEngine;
+use ark_ff::PrimeField;
 use ark_mnt4_298::MNT4_298;
 use ark_mnt4_753::MNT4_753;
 use ark_mnt6_298::MNT6_298;
 use ark_mnt6_753::MNT6_753;
-use ark_ff::PrimeField;
-use ark_ec::PairingEngine;
 
-use nonnative::NonNativeFieldVar;
+use ark_r1cs_std::{alloc::AllocVar, eq::EqGadget, fields::FieldVar, R1CSVar};
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
-use ark_r1cs_std::{
-    alloc::AllocVar, eq::EqGadget, fields::FieldVar, R1CSVar
-};
+use nonnative::NonNativeFieldVar;
 use rand::thread_rng;
 use rand_core::RngCore;
 
@@ -228,21 +226,21 @@ fn distribution_law_test<TargetField: PrimeField, BaseField: PrimeField, R: RngC
         "(a + b) * c doesn't equal (a * c) + (b * c)"
     );
 
-    let a =
-        NonNativeFieldVar::<TargetField, BaseField>::new_witness(ark_relations::ns!(cs, "a"), || {
-            Ok(a_native)
-        })
-        .unwrap();
-    let b =
-        NonNativeFieldVar::<TargetField, BaseField>::new_witness(ark_relations::ns!(cs, "b"), || {
-            Ok(b_native)
-        })
-        .unwrap();
-    let c =
-        NonNativeFieldVar::<TargetField, BaseField>::new_witness(ark_relations::ns!(cs, "c"), || {
-            Ok(c_native)
-        })
-        .unwrap();
+    let a = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
+        ark_relations::ns!(cs, "a"),
+        || Ok(a_native),
+    )
+    .unwrap();
+    let b = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
+        ark_relations::ns!(cs, "b"),
+        || Ok(b_native),
+    )
+    .unwrap();
+    let c = NonNativeFieldVar::<TargetField, BaseField>::new_witness(
+        ark_relations::ns!(cs, "c"),
+        || Ok(c_native),
+    )
+    .unwrap();
 
     let a_plus_b = &a + &b;
     let a_times_c = &a * &c;
@@ -655,10 +653,38 @@ macro_rules! nonnative_test {
     };
 }
 
-nonnative_test!(MNT46Small, <MNT4_298 as PairingEngine>::Fr, <MNT6_298 as PairingEngine>::Fr);
-nonnative_test!(MNT64Small, <MNT6_298 as PairingEngine>::Fr, <MNT4_298 as PairingEngine>::Fr);
-nonnative_test!(MNT46Big, <MNT4_753 as PairingEngine>::Fr, <MNT6_753 as PairingEngine>::Fr);
-nonnative_test!(MNT64Big, <MNT6_753 as PairingEngine>::Fr, <MNT4_753 as PairingEngine>::Fr);
-nonnative_test!(BLS12MNT4Small, <Bls12_381 as PairingEngine>::Fr, <MNT4_298 as PairingEngine>::Fr);
-nonnative_test!(BLS12, <Bls12_381 as PairingEngine>::Fq, <Bls12_381 as PairingEngine>::Fr);
-nonnative_test!(MNT6BigMNT4Small, <MNT6_753 as PairingEngine>::Fr, <MNT4_298 as PairingEngine>::Fr);
+nonnative_test!(
+    MNT46Small,
+    <MNT4_298 as PairingEngine>::Fr,
+    <MNT6_298 as PairingEngine>::Fr
+);
+nonnative_test!(
+    MNT64Small,
+    <MNT6_298 as PairingEngine>::Fr,
+    <MNT4_298 as PairingEngine>::Fr
+);
+nonnative_test!(
+    MNT46Big,
+    <MNT4_753 as PairingEngine>::Fr,
+    <MNT6_753 as PairingEngine>::Fr
+);
+nonnative_test!(
+    MNT64Big,
+    <MNT6_753 as PairingEngine>::Fr,
+    <MNT4_753 as PairingEngine>::Fr
+);
+nonnative_test!(
+    BLS12MNT4Small,
+    <Bls12_381 as PairingEngine>::Fr,
+    <MNT4_298 as PairingEngine>::Fr
+);
+nonnative_test!(
+    BLS12,
+    <Bls12_381 as PairingEngine>::Fq,
+    <Bls12_381 as PairingEngine>::Fr
+);
+nonnative_test!(
+    MNT6BigMNT4Small,
+    <MNT6_753 as PairingEngine>::Fr,
+    <MNT4_298 as PairingEngine>::Fr
+);

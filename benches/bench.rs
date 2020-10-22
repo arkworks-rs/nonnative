@@ -1,9 +1,9 @@
-use curves::{bls12_381, mnt4_298, mnt4_753, mnt6_298, mnt6_753};
-use ark_ff::PrimeField;
 use crate::NonNativeFieldVar;
-use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
+use ark_ff::PrimeField;
 use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::FieldVar;
+use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
+use curves::{bls12_381, mnt4_298, mnt4_753, mnt6_298, mnt6_753};
 use rand::thread_rng;
 use rand_core::RngCore;
 
@@ -17,9 +17,10 @@ fn allocation<TargetField: PrimeField, BaseField: PrimeField, R: RngCore>(
 
     let before = cs.num_constraints();
     // there will be a check that ensures it has the reasonable number of bits
-    NonNativeFieldVar::<TargetField, BaseField>::new_witness(ark_relations::ns!(cs, "alloc a"), || {
-        Ok(a_native)
-    })
+    NonNativeFieldVar::<TargetField, BaseField>::new_witness(
+        ark_relations::ns!(cs, "alloc a"),
+        || Ok(a_native),
+    )
     .unwrap();
     let after = cs.num_constraints();
 

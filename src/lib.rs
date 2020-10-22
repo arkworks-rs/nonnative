@@ -25,8 +25,6 @@ use crate::params::{gen_params, get_params};
 use crate::reduce::Reducer;
 use ark_ff::PrimeField;
 use ark_ff::{to_bytes, BigInteger};
-use core::{borrow::Borrow, cmp::max, fmt::Debug, marker::PhantomData};
-use ark_relations::{lc, r1cs::{ConstraintSystemRef, LinearCombination, Namespace, SynthesisError}};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::{
     bits::{ToBitsGadget, ToBytesGadget},
@@ -38,6 +36,11 @@ use ark_r1cs_std::{
     uint8::UInt8,
     R1CSVar, ToConstraintFieldGadget,
 };
+use ark_relations::{
+    lc,
+    r1cs::{ConstraintSystemRef, LinearCombination, Namespace, SynthesisError},
+};
+use core::{borrow::Borrow, cmp::max, fmt::Debug, marker::PhantomData};
 
 /// example parameters of non-native field gadget
 ///
