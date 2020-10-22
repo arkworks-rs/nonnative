@@ -1,8 +1,13 @@
-use algebra::{bls12_381, mnt4_298, mnt4_753, mnt6_298, mnt6_753, PrimeField};
-use nonnative::params::HitRate;
+use ark_bls12_381::Bls12_381;
+use ark_mnt4_298::MNT4_298;
+use ark_mnt4_753::MNT4_753;
+use ark_mnt6_298::MNT6_298;
+use ark_mnt6_753::MNT6_753;
+use ark_ff::PrimeField;
+use ark_ec::PairingEngine;
 use nonnative::NonNativeFieldVar;
 use ark_relations::r1cs::{ConstraintSystem, ConstraintSystemRef};
-use r1cs_std::{
+use ark_r1cs_std::{
     alloc::AllocVar, eq::EqGadget, fields::FieldVar, R1CSVar
 };
 use rand::thread_rng;
@@ -649,10 +654,10 @@ macro_rules! nonnative_test {
     };
 }
 
-nonnative_test!(MNT46Small, mnt4_298::Fr, mnt6_298::Fr);
-nonnative_test!(MNT64Small, mnt6_298::Fr, mnt4_298::Fr);
-nonnative_test!(MNT46Big, mnt4_753::Fr, mnt6_753::Fr);
-nonnative_test!(MNT64Big, mnt6_753::Fr, mnt4_753::Fr);
-nonnative_test!(BLS12MNT4Small, bls12_381::Fr, mnt4_298::Fr);
-nonnative_test!(BLS12, bls12_381::Fq, bls12_381::Fr);
-nonnative_test!(MNT6BigMNT4Small, mnt6_753::Fr, mnt4_298::Fr);
+nonnative_test!(MNT46Small, MNT4_298::Fr, MNT6_298::Fr);
+nonnative_test!(MNT64Small, MNT6_298::Fr, MNT4_298::Fr);
+nonnative_test!(MNT46Big, MNT4_753::Fr, MNT6_753::Fr);
+nonnative_test!(MNT64Big, MNT6_753::Fr, MNT4_753::Fr);
+nonnative_test!(BLS12MNT4Small, Bls12_381::Fr, MNT4_298::Fr);
+nonnative_test!(BLS12, Bls12_381::Fq, Bls12_381::Fr);
+nonnative_test!(MNT6BigMNT4Small, MNT6_753::Fr, MNT4_298::Fr);

@@ -47,7 +47,13 @@ ark-ec = { git = "https://github.com/arkworks-rs/algebra", default-features = fa
 ark-std = { git = "https://github.com/arkworks-rs/utils", default-features = false }
 ark-relations = { git = "https://github.com/arkworks-rs/snark", default-features = false }
 
-ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std", branch = "update-to-ark" }
+ark-bls12-381 = { git = "https://github.com/arkworks-rs/curves" }
+ark-mnt4-298 = { git = "https://github.com/arkworks-rs/curves" }
+ark-mnt4-753 = { git = "https://github.com/arkworks-rs/curves" }
+ark-mnt6-298 = { git = "https://github.com/arkworks-rs/curves" }
+ark-mnt6-753 = { git = "https://github.com/arkworks-rs/curves" }
+
+ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std" }
 crypto-primitives = { git = "https://github.com/arkworks-rs/crypto-primitives" }
 
 rand_core = { version = "0.5" }
