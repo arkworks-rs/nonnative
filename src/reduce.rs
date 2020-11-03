@@ -242,25 +242,20 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
         // almost only used for mandatory reduce, since the values are not pushed first (pushing first provides better efficiency)
         let mut limb_bits = Vec::new();
         let surfeit = overhead!(elem.num_of_additions_over_normal_form + BaseField::one()) + 1;
-        for  limb in elem.limbs.iter() {
-            limb_bits.push(Self::limb_to_bits(
-                    limb,
-                    params.bits_per_limb + surfeit,
-                )?);
+        for limb in elem.limbs.iter() {
+            limb_bits.push(Self::limb_to_bits(limb, params.bits_per_limb + surfeit)?);
         }
 
         // compute the powers of 2 mod p that might be used
         let mut powers_of_2_mod_p = Vec::new();
         let mut cur = TargetField::one();
-        for _ in 0..params.num_limbs * params.bits_per_limb
-            + surfeit
-        {
+        for _ in 0..params.num_limbs * params.bits_per_limb + surfeit {
             powers_of_2_mod_p.push(
                 AllocatedNonNativeFieldVar::<TargetField, BaseField>::get_limbs_representations(
                     &cur,
                     Some(&cs),
                 )
-                    .unwrap(),
+                .unwrap(),
             );
             cur.double_in_place();
         }
@@ -309,8 +304,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
             {
                 additions += &BaseField::one();
                 let num_of_limbs_lower = params.num_limbs - i - 1;
-                let power_of_2 =
-                    &powers_of_2_mod_p[num_of_limbs_lower * params.bits_per_limb + j];
+                let power_of_2 = &powers_of_2_mod_p[num_of_limbs_lower * params.bits_per_limb + j];
 
                 if bit.value().unwrap_or_default() {
                     for (k, power_of_2_limb) in power_of_2.iter().enumerate() {

@@ -267,7 +267,6 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
             target_phantom: PhantomData,
         };
 
-
         Reducer::<TargetField, BaseField>::post_add_reduce(&mut res)?;
 
         Ok(res)
@@ -301,30 +300,67 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
     /// Subtract a nonnative field element
     #[tracing::instrument(target = "r1cs")]
     pub fn sub(&self, other: &Self) -> Result<Self, SynthesisError> {
-        let result: TargetField = self
-            .value()
-            .unwrap_or_default()
-            .sub(&other.value().unwrap_or_default());
-        let result_gadget = AllocatedNonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            self.cs.clone(),
-            || Ok(result),
-        )?;
-        let result_computed = other.add(&result_gadget)?;
-        self.conditional_enforce_equal(&result_computed, &Boolean::TRUE)?;
-        Ok(result_gadget)
+        let surfeit = overhead!(other.num_of_additions_over_normal_form + BaseField::one()) + 1;
+
+        let pad_limb = BaseField::one();
+        pad_limb.into_repr().muln(surfeit as u32);
+
+        let cs = self.cs().or(other.cs());
+        assert!(cs != ConstraintSystemRef::None);
+
+        let allocated_pad_limb = AllocatedFp::<BaseField>::new_constant(cs.clone(), pad_limb)?;
+
+        let mut allocated_pad_limbs = Vec::<AllocatedFp<BaseField>>::new();
+        for _ in 0..self.limbs.len() {
+            allocated_pad_limbs.push(allocated_pad_limb.clone());
+        }
+
+        let pad = AllocatedNonNativeFieldVar::<TargetField, BaseField> {
+            cs: cs.clone(),
+            limbs: allocated_pad_limbs,
+            num_of_additions_over_normal_form: BaseField::zero(),
+            is_in_the_normal_form: true,
+            target_phantom: PhantomData,
+        };
+
+        let pad_to_kp_gap = pad.value()?.neg();
+        let pad_to_kp_limbs = Self::get_limbs_representations(&pad_to_kp_gap, Some(&self.cs))?;
+
+        let mut limbs = Vec::<AllocatedFp<BaseField>>::new();
+        for ((this_limb, other_limb), pad_to_kp_limb) in self
+            .limbs
+            .iter()
+            .zip(other.limbs.iter())
+            .zip(pad_to_kp_limbs.iter())
+        {
+            limbs.push(
+                this_limb
+                    .add_constant(pad_limb)
+                    .add_constant(*pad_to_kp_limb)
+                    .sub(other_limb),
+            );
+        }
+
+        let result = AllocatedNonNativeFieldVar::<TargetField, BaseField> {
+            cs: cs,
+            limbs: limbs,
+            num_of_additions_over_normal_form: self.num_of_additions_over_normal_form
+                + &other.num_of_additions_over_normal_form.double(),
+            is_in_the_normal_form: false,
+            target_phantom: PhantomData,
+        };
+        Ok(result)
     }
 
     /// Subtract a constant
     #[tracing::instrument(target = "r1cs")]
     pub fn sub_constant(&self, other: &TargetField) -> Result<Self, SynthesisError> {
-        let result: TargetField = self.value().unwrap_or_default().sub(other);
-        let result_gadget = AllocatedNonNativeFieldVar::<TargetField, BaseField>::new_witness(
-            self.cs.clone(),
-            || Ok(result),
-        )?;
-        let result_computed = result_gadget.add_constant(&other)?;
-        self.conditional_enforce_equal(&result_computed, &Boolean::TRUE)?;
-        Ok(result_gadget)
+        self.sub(
+            &AllocatedNonNativeFieldVar::<TargetField, BaseField>::new_constant(
+                self.cs.clone(),
+                other,
+            )?,
+        )
     }
 
     /// Multiply a nonnative field element
