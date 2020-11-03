@@ -662,7 +662,7 @@ nonnative_test!(
     <MNT4_298 as PairingEngine>::Fr,
     <MNT6_298 as PairingEngine>::Fr
 );
-/*nonnative_test!(
+nonnative_test!(
     MNT64Small,
     <MNT6_298 as PairingEngine>::Fr,
     <MNT4_298 as PairingEngine>::Fr
@@ -692,4 +692,4 @@ nonnative_test!(
     MNT6BigMNT4Small,
     <MNT6_753 as PairingEngine>::Fr,
     <MNT4_298 as PairingEngine>::Fr
-);*/
+);
