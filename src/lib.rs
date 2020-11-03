@@ -62,13 +62,9 @@ use ark_std::{borrow::Borrow, cmp::max, fmt::Debug, marker::PhantomData, vec, ve
 /// Sample parameters for non-native field gadgets
 /// - `BaseField`:              the constraint field
 /// - `TargetField`:            the field being simulated
-/// - `num_limbs`:              how many limbs are used (searched using the Python script)
-/// - `bits_per_top_limb`:      the size of the most significant limb (searched using the Python script)
-/// - `bits_per_non_top_limb`:  the size of limbs other than the most significant one (searched using the Python script)
+/// - `num_limbs`:              how many limbs are used
+/// - `bits_per_limb`:          the size of the limbs
 ///
-/// Some requirements for the parameters:
-/// - `bits_per_top_limb <= bits_per_non_top_limb`, since the current implementation does not handle the other case, and the other case would not be significantly more efficient.
-/// - `BaseField's prime length - 1` > `2 * (bits_per_non_top_limb + 5)`, which ensures that the reducer is able to reduce the representations using the `sum of residues` method.
 pub mod params;
 /// a submodule for reducing the representations
 #[doc(hidden)]
@@ -109,16 +105,10 @@ macro_rules! overhead {
 #[derive(Clone, Debug)]
 pub struct NonNativeFieldParams {
     /// The number of limbs (`BaseField` elements) used to represent a `TargetField` element. Highest limb first.
-    /// Searched by the Python script
     pub num_limbs: usize,
 
-    /// The number of bits of the top limb
-    /// Searched by the Python script
-    pub bits_per_top_limb: usize,
-
-    /// The number of bits of the limbs other than the top one
-    /// Searched by the Python script
-    pub bits_per_non_top_limb: usize,
+    /// The number of bits of the limb
+    pub bits_per_limb: usize,
 }
 
 /// The allocated version of `NonNativeFieldVar` (introduced below)
@@ -222,12 +212,12 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
     /// Obtain the value of a nonnative field element
     pub fn value(&self) -> Result<TargetField, SynthesisError> {
         let params = get_params::<TargetField, BaseField>(&self.cs);
-        let bits_per_non_top_limb = params.bits_per_non_top_limb;
+        let bits_per_limb = params.bits_per_limb;
 
         let mut result = TargetField::zero();
         let mut power = TargetField::one();
         let mut base_repr: <TargetField as PrimeField>::BigInt = TargetField::one().into_repr();
-        base_repr.muln(bits_per_non_top_limb as u32);
+        base_repr.muln(bits_per_limb as u32);
         let base: TargetField = TargetField::from_repr(base_repr).unwrap();
 
         for limb in self.limbs.iter().rev() {
@@ -276,6 +266,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
             is_in_the_normal_form: false,
             target_phantom: PhantomData,
         };
+
 
         Reducer::<TargetField, BaseField>::post_add_reduce(&mut res)?;
 
@@ -400,26 +391,16 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
         };
 
         let num_limbs = params.num_limbs;
-        let bits_per_top_limb = params.bits_per_top_limb;
-        let bits_per_non_top_limb = params.bits_per_non_top_limb;
+        let bits_per_limb = params.bits_per_limb;
 
         // push the lower limbs first
-        for _ in 0..num_limbs - 1 {
+        for _ in 0..num_limbs {
             let cur_bits = cur.to_bits(); // `to_bits` is big endian
             let cur_mod_r = <BaseField as PrimeField>::BigInt::from_bits(
-                &cur_bits[cur_bits.len() - bits_per_non_top_limb..],
+                &cur_bits[cur_bits.len() - bits_per_limb..],
             ); // therefore, the lowest `bits_per_non_top_limb` bits is what we want.
             limbs.push(BaseField::from_repr(cur_mod_r).unwrap());
-            cur.divn(bits_per_non_top_limb as u32);
-        }
-
-        // push the top limb
-        {
-            let cur_bits = cur.to_bits();
-            let cur_mod_r = <BaseField as PrimeField>::BigInt::from_bits(
-                &cur_bits[cur_bits.len() - bits_per_top_limb..],
-            );
-            limbs.push(BaseField::from_repr(cur_mod_r).unwrap());
+            cur.divn(bits_per_limb as u32);
         }
 
         // then we reserve, so that the limbs are ``big limb first''
@@ -515,23 +496,9 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
             )?;
         }
 
-        let mut prod_limbs_unbalanced_cut: Vec<AllocatedFp<BaseField>> = Vec::new();
-        let bits_per_non_top_limb = vec![params.bits_per_non_top_limb as u64];
-        let adjustment_factor: BaseField =
-            BaseField::from_repr(<BaseField as PrimeField>::BigInt::from(2u64))
-                .unwrap()
-                .pow(&bits_per_non_top_limb);
-
-        let adjusted_zero = prod_limbs[0].mul_constant(adjustment_factor);
-        prod_limbs_unbalanced_cut.push(adjusted_zero.add(&prod_limbs[1]));
-
-        for prod_limb in prod_limbs.iter().skip(2) {
-            prod_limbs_unbalanced_cut.push((*prod_limb).clone());
-        }
-
         Ok(AllocatedNonNativeFieldMulResultVar {
             cs: self.cs.clone(),
-            limbs: prod_limbs_unbalanced_cut,
+            limbs: prod_limbs,
             prod_of_num_of_additions: (x_num_of_additions + BaseField::one())
                 * (y_num_of_additions + BaseField::one()),
             target_phantom: PhantomData,
@@ -589,17 +556,13 @@ impl<TargetField: PrimeField, BaseField: PrimeField> ToBitsGadget<BaseField>
 
         let mut self_normal = self.clone();
         Reducer::<TargetField, BaseField>::pre_eq_reduce(&mut self_normal)?;
+        // TODO: does not necessarily be the normal form
 
         let mut bits = Vec::<Boolean<BaseField>>::new();
 
-        for (i, limb) in self_normal.limbs.iter().enumerate() {
-            let limb_bits = Reducer::<TargetField, BaseField>::limb_to_bits(&limb, {
-                if i == 0 {
-                    params.bits_per_top_limb
-                } else {
-                    params.bits_per_non_top_limb
-                }
-            })?;
+        for limb in self_normal.limbs.iter() {
+            let limb_bits =
+                Reducer::<TargetField, BaseField>::limb_to_bits(&limb, params.bits_per_limb)?;
 
             bits.extend_from_slice(&limb_bits);
         }
@@ -790,15 +753,6 @@ impl<TargetField: PrimeField, BaseField: PrimeField> AllocVar<TargetField, BaseF
 
         let params = get_params::<TargetField, BaseField>(&cs);
 
-        assert!(
-            BaseField::size_in_bits() - 1
-                > 2 * max(
-                    params.bits_per_top_limb + 5,
-                    params.bits_per_non_top_limb + 5
-                )
-        );
-        assert!(params.bits_per_top_limb <= params.bits_per_non_top_limb);
-
         let elem = f()?;
         let elem_representations = Self::get_limbs_representations(&elem.borrow(), Some(&cs))?;
         let mut limbs = Vec::new();
@@ -819,13 +773,10 @@ impl<TargetField: PrimeField, BaseField: PrimeField> AllocVar<TargetField, BaseF
 
         if mode == AllocationMode::Witness {
             for limb in limbs.iter().rev().take(params.num_limbs - 1) {
-                Reducer::<TargetField, BaseField>::limb_to_bits(
-                    limb,
-                    params.bits_per_non_top_limb,
-                )?;
+                Reducer::<TargetField, BaseField>::limb_to_bits(limb, params.bits_per_limb)?;
             }
 
-            Reducer::<TargetField, BaseField>::limb_to_bits(&limbs[0], params.bits_per_top_limb)?;
+            Reducer::<TargetField, BaseField>::limb_to_bits(&limbs[0], params.bits_per_limb)?;
         }
 
         Ok(Self {
@@ -1250,52 +1201,34 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
     fn to_bits(&self) -> Result<Vec<Vec<Boolean<BaseField>>>, SynthesisError> {
         let params = get_params::<TargetField, BaseField>(&self.cs);
 
-        let num_limbs_unreduced = self.limbs.len();
-        let bits_per_top_limb = params.bits_per_top_limb;
-        let bits_per_non_top_limb = params.bits_per_non_top_limb;
+        let num_mulresult_limbs = self.limbs.len();
+        let bits_per_limb = params.bits_per_limb;
 
-        let log_top_limb = overhead!(self.prod_of_num_of_additions);
-        let log_sub_top_limb = overhead!(self.prod_of_num_of_additions.double());
-        let log_other_limbs_upper_bound = overhead!(self
+        let overhead_limb = overhead!(self
             .prod_of_num_of_additions
             .mul(&BaseField::from_repr(BaseField::BigInt::from(params.num_limbs as u64)).unwrap()));
 
-        let bits_per_unreduced_top_limb = max(
-            2 * (bits_per_top_limb + 1) + log_top_limb + bits_per_non_top_limb + 1,
-            2 * (bits_per_non_top_limb + 1) + log_sub_top_limb + 1,
-        );
-        let bits_per_unreduced_non_top_limb =
-            2 * (bits_per_non_top_limb + 1) + log_other_limbs_upper_bound;
+        let bits_per_mulresult_limb = 2 * (bits_per_limb + 1) + overhead_limb;
 
         let mut bits = Vec::<Vec<Boolean<BaseField>>>::with_capacity(
-            (num_limbs_unreduced - 1) * bits_per_unreduced_non_top_limb
-                + bits_per_unreduced_top_limb,
+            num_mulresult_limbs * bits_per_mulresult_limb,
         );
 
-        for _ in 0..((num_limbs_unreduced - 1) * bits_per_unreduced_non_top_limb
-            + bits_per_unreduced_top_limb)
-        {
+        for _ in 0..num_mulresult_limbs * bits_per_mulresult_limb {
             bits.push(Vec::new());
         }
 
         let mut cur = 0;
-        for (l, limb) in self.limbs.iter().rev().enumerate() {
-            let bits_this_limb = if l == self.limbs.len() - 1 {
-                // top limb
-                bits_per_unreduced_top_limb
-            } else {
-                bits_per_unreduced_non_top_limb
-            };
-
+        for limb in self.limbs.iter().rev() {
             let mut limb_bits =
-                Reducer::<TargetField, BaseField>::limb_to_bits(limb, bits_this_limb)?;
+                Reducer::<TargetField, BaseField>::limb_to_bits(limb, bits_per_mulresult_limb)?;
             limb_bits.reverse();
 
-            for (i, limb_bit) in limb_bits.iter().enumerate().take(bits_this_limb) {
+            for (i, limb_bit) in limb_bits.iter().enumerate().take(bits_per_mulresult_limb) {
                 let index = cur + i;
                 bits[index].push((*limb_bit).clone());
             }
-            cur += params.bits_per_non_top_limb;
+            cur += params.bits_per_limb;
         }
 
         Ok(bits)
@@ -1337,10 +1270,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
                 }
             }
 
-            if !bit.is_empty()
-                && i < params.bits_per_top_limb
-                    + (params.num_limbs - 1) * params.bits_per_non_top_limb
-            {
+            if !bit.is_empty() && i < params.num_limbs * params.bits_per_limb {
                 num_of_additions -= &BaseField::one(); // consider the first addition for each bit within the normal form to be free
             }
             powers_of_2_cur.double_in_place();

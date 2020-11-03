@@ -149,8 +149,7 @@ pub fn gen_params<TargetField: PrimeField, BaseField: PrimeField>() -> NonNative
 
     NonNativeFieldParams {
         num_limbs: problem.num_of_limbs,
-        bits_per_top_limb: problem.top_limb_size.unwrap(),
-        bits_per_non_top_limb: problem.non_top_limb_size.unwrap(),
+        bits_per_limb: problem.limb_size.unwrap(),
     }
 }
 
@@ -168,10 +167,8 @@ pub struct ParamsSearching {
     pub num_of_additions_after_mul: usize,
     /// Number of limbs
     pub num_of_limbs: usize,
-    /// Size of the top limb
-    pub top_limb_size: Option<usize>,
-    /// Size of a non-top limb
-    pub non_top_limb_size: Option<usize>,
+    /// Size of the limb
+    pub limb_size: Option<usize>,
 }
 
 impl ParamsSearching {
@@ -183,8 +180,7 @@ impl ParamsSearching {
             target_field_prime_bit_length,
             num_of_additions_after_mul: 1,
             num_of_limbs: 2,
-            top_limb_size: None,
-            non_top_limb_size: None,
+            limb_size: None,
         }
     }
 
@@ -215,75 +211,42 @@ impl ParamsSearching {
                     {
                         #[cfg(feature = "std")]
                         dbg!(format!("The program has tested up to {} limbs; at this point, we can conclude that no suitable parameters exist", num_of_limbs));
-                        self.top_limb_size = None;
-                        self.non_top_limb_size = None;
+                        self.limb_size = None;
                         return;
                     }
                 }
             }
 
-            let top_limb = 1 + (num_of_additions_after_mul + 1) * (num_of_additions_after_mul + 1);
-            let log_top_limb = ark_std::log2(top_limb) as usize;
-            let log_sub_top_limb = ark_std::log2(top_limb * 2) as usize;
-            let log_other_limbs_upper_bound = ark_std::log2(top_limb * num_of_limbs) as usize;
+            let overhead_limb = ark_std::log2(
+                1 + (num_of_additions_after_mul + 1)
+                    * (num_of_additions_after_mul + 1)
+                    * num_of_limbs,
+            ) as usize;
 
             let mut flag = false;
             let mut cost = 0usize;
-            let mut current_top_limb_size = None;
-            let mut current_non_top_limb_size = None;
+            let mut current_limb_size = None;
 
-            for top_limb_size in 0..min(base_field_prime_length, target_field_prime_bit_length) {
-                let non_top_limb_size =
-                    (target_field_prime_bit_length - top_limb_size + self.num_of_limbs - 1 - 1)
-                        / (self.num_of_limbs - 1);
-
-                // top limb must be smaller; otherwise, the top limb is too long
-                if top_limb_size > non_top_limb_size {
-                    break;
-                }
-
-                // post-add reduce must succeed; otherwise, the top limb is too long
-                if 2 * (top_limb_size + 5) >= base_field_prime_length {
-                    break;
-                }
-                if 2 * (non_top_limb_size + 5) >= base_field_prime_length {
+            for limb_size in 0..min(base_field_prime_length, target_field_prime_bit_length) {
+                if limb_size * num_of_limbs < target_field_prime_bit_length {
                     continue;
                 }
 
-                // computation on the top limb works
-                if 2 * (top_limb_size + 1) + log_top_limb + non_top_limb_size
-                    >= 2 * (non_top_limb_size + 1) + log_sub_top_limb
-                {
-                    if 2 * (top_limb_size + 1) + log_top_limb + non_top_limb_size
-                        >= base_field_prime_length - 1
-                    {
-                        continue;
-                    }
-                } else if 2 * (non_top_limb_size + 1) + log_sub_top_limb
-                    >= base_field_prime_length - 1
-                {
+                if 2 * (limb_size + 1) + overhead_limb >= base_field_prime_length - 1 {
                     continue;
                 }
 
-                // computation on the non-top limb works
-                if 2 * non_top_limb_size + log_other_limbs_upper_bound > base_field_prime_length - 1
-                {
-                    continue;
-                }
-
-                let this_cost = 2 * (top_limb_size + 1)
-                    + log_top_limb
-                    + non_top_limb_size
+                let this_cost = 2 * (limb_size + 1)
+                    + overhead_limb
+                    + limb_size
                     + 1
-                    + (2 * num_of_limbs - 3)
-                        * (2 * (non_top_limb_size + 1) + log_other_limbs_upper_bound)
+                    + (2 * num_of_limbs - 3) * (2 * (limb_size + 1) + overhead_limb)
                     - target_field_prime_bit_length;
 
                 if !flag || this_cost < cost {
                     flag = true;
                     cost = this_cost;
-                    current_top_limb_size = Some(top_limb_size);
-                    current_non_top_limb_size = Some(non_top_limb_size);
+                    current_limb_size = Some(limb_size);
                 }
             }
 
@@ -298,8 +261,7 @@ impl ParamsSearching {
                 continue;
             }
 
-            self.top_limb_size = current_top_limb_size;
-            self.non_top_limb_size = current_non_top_limb_size;
+            self.limb_size = current_limb_size;
             break;
         }
     }
