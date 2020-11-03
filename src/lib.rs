@@ -300,10 +300,14 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
     /// Subtract a nonnative field element
     #[tracing::instrument(target = "r1cs")]
     pub fn sub(&self, other: &Self) -> Result<Self, SynthesisError> {
+        let params = get_params::<TargetField, BaseField>(&self.cs);
+        let bits_per_limb = params.bits_per_limb;
+
         let surfeit = overhead!(other.num_of_additions_over_normal_form + BaseField::one()) + 1;
 
-        let pad_limb = BaseField::one();
-        pad_limb.into_repr().muln(surfeit as u32);
+        let mut pad_limb_repr: <BaseField as PrimeField>::BigInt = BaseField::one().into_repr();
+        pad_limb_repr.muln((surfeit + bits_per_limb) as u32);
+        let pad_limb = BaseField::from_repr(pad_limb_repr).unwrap();
 
         let cs = self.cs().or(other.cs());
         assert!(cs != ConstraintSystemRef::None);
@@ -318,8 +322,8 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
         let pad = AllocatedNonNativeFieldVar::<TargetField, BaseField> {
             cs: cs.clone(),
             limbs: allocated_pad_limbs,
-            num_of_additions_over_normal_form: BaseField::zero(),
-            is_in_the_normal_form: true,
+            num_of_additions_over_normal_form: BaseField::zero(), // not the actual value, it is because we only use `pad` to get the value
+            is_in_the_normal_form: true, // not the actual value, it is because we only use `pad` to get the value
             target_phantom: PhantomData,
         };
 
@@ -345,7 +349,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
             cs: cs,
             limbs: limbs,
             num_of_additions_over_normal_form: self.num_of_additions_over_normal_form
-                + &other.num_of_additions_over_normal_form.double(),
+                + ((other.num_of_additions_over_normal_form + &BaseField::one()).double()),
             is_in_the_normal_form: false,
             target_phantom: PhantomData,
         };
