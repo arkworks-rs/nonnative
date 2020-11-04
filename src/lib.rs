@@ -700,9 +700,6 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
                 ]))
                 .add_constant(remainder_limb);
 
-            println!("left: {:?}", eqn_left.value()?.into_repr());
-            println!("right: {:?}", eqn_right.value()?.into_repr());
-
             eqn_left.conditional_enforce_equal(&eqn_right, &Boolean::<BaseField>::TRUE)?;
 
             accumulated_extra = new_accumulated_extra;
