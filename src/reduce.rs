@@ -1,5 +1,5 @@
 use crate::params::get_params;
-use crate::{overhead, AllocatedNonNativeFieldVar};
+use crate::{overhead, AllocatedNonNativeFieldVar, NonNativeFieldParams};
 use ark_ff::{biginteger::BigInteger, fields::FpParameters, BitIteratorBE};
 use ark_ff::{One, PrimeField, Zero};
 use ark_r1cs_std::alloc::AllocVar;
@@ -14,6 +14,48 @@ use ark_relations::{
 };
 use ark_std::{cmp::min, marker::PhantomData, vec, vec::Vec};
 use num_bigint::BigUint;
+
+pub fn limbs_to_bigint<BaseField: PrimeField>(
+    params: &NonNativeFieldParams,
+    limbs: &[BaseField],
+) -> BigUint {
+    let mut val = BigUint::zero();
+    let mut big_cur = BigUint::one();
+    let two = BigUint::from(2u32);
+    for limb in limbs.iter().rev() {
+        let limb_repr = limb.into_repr().to_bits();
+        let mut small_cur = big_cur.clone();
+        for limb_bit in limb_repr.iter().rev() {
+            if *limb_bit {
+                val += &small_cur;
+            }
+            small_cur *= 2u32;
+        }
+        big_cur *= two.pow(params.bits_per_limb as u32);
+    }
+
+    val
+}
+
+pub fn bigint_to_basefield<BaseField: PrimeField>(
+    _params: &NonNativeFieldParams,
+    bigint: &BigUint,
+) -> BaseField {
+    let mut val = BaseField::zero();
+    let mut cur = BaseField::one();
+    let bytes = bigint.to_bytes_be();
+
+    let basefield_256 = BaseField::from_repr(<BaseField as PrimeField>::BigInt::from(256)).unwrap();
+
+    for byte in bytes.iter().rev() {
+        let bytes_basefield = BaseField::from(*byte as u128);
+        val += cur * bytes_basefield;
+
+        cur *= &basefield_256;
+    }
+
+    val
+}
 
 /// the collections of methods for reducing the presentations
 pub struct Reducer<TargetField: PrimeField, BaseField: PrimeField> {
@@ -559,52 +601,16 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
         let (elem_pushed_to_the_top_limbs_value, elem_pushed_to_the_top_limbs_lc) =
             Self::push_to_the_top_keep_top(elem)?;
 
-        let limbs_to_bigint = |limbs: Vec<BaseField>| {
-            let mut val = BigUint::zero();
-            let mut big_cur = BigUint::one();
-            let two = BigUint::from(2u32);
-            for limb in limbs.iter().rev() {
-                let limb_repr = limb.into_repr().to_bits();
-                let mut small_cur = big_cur.clone();
-                for limb_bit in limb_repr.iter().rev() {
-                    if *limb_bit {
-                        val += &small_cur;
-                    }
-                    small_cur *= 2u32;
-                }
-                big_cur *= two.pow(params.bits_per_limb as u32);
-            }
+        let elem_bigint = limbs_to_bigint(&params, &elem_pushed_to_the_top_limbs_value);
+        let normal_bigint = limbs_to_bigint(&params, &normal_form_representations);
+        let p_bigint = limbs_to_bigint(&params, &p_representations);
 
-            val
-        };
-
-        let bigint_to_basefield = |bigint: BigUint| {
-            let mut val = BaseField::zero();
-            let mut cur = BaseField::one();
-            let bytes = bigint.to_bytes_be();
-
-            let basefield_256 =
-                BaseField::from_repr(<BaseField as PrimeField>::BigInt::from(256)).unwrap();
-
-            for byte in bytes.iter().rev() {
-                let bytes_basefield = BaseField::from(*byte);
-                val += cur * bytes_basefield;
-
-                cur *= &basefield_256;
-            }
-
-            val
-        };
-
-        let elem_bigint = limbs_to_bigint(elem_pushed_to_the_top_limbs_value);
-        let normal_bigint = limbs_to_bigint(normal_form_representations);
-        let p_bigint = limbs_to_bigint(p_representations);
-
-        let k = bigint_to_basefield((elem_bigint - normal_bigint) / p_bigint);
+        let k =
+            bigint_to_basefield::<BaseField>(&params, &((elem_bigint - normal_bigint) / p_bigint));
         let k_gadget = AllocatedFp::<BaseField>::new_witness(cs.clone(), || Ok(k))?;
 
-        // k should be smaller than 2^ ((BaseField::size_in_bits() - 1) - max(bits_per_top_limb, bits_per_non_top_limb) - 1)
-        // aka, k only has at most (BaseField::size_in_bits() - 1) - max(bits_per_top_limb, bits_per_non_top_limb) - 1 bits.
+        // k should be smaller than 2^ ((BaseField::size_in_bits() - 1) - bits_per_limb - 1)
+        // aka, k only has at most (BaseField::size_in_bits() - 1) - bits_per_limb - 1 bits.
         Self::limb_to_bits(
             &k_gadget,
             (BaseField::size_in_bits() - 1) - params.bits_per_limb - 1,
