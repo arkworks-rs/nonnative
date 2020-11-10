@@ -706,6 +706,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
             groupped_limb_pairs.iter().enumerate()
         {
             let mut pad_limb_repr: <BaseField as PrimeField>::BigInt = BaseField::one().into_repr();
+
             pad_limb_repr.muln(
                 (surfeit
                     + (bits_per_limb - shift_per_limb)
@@ -714,22 +715,13 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
             );
             let pad_limb = BaseField::from_repr(pad_limb_repr).unwrap();
 
-            //println!("pad_limb = {:?}", pad_limb.into_repr());
-
             let left_total_limb_value = left_total_limb.value()?;
             let right_total_limb_value = right_total_limb.value()?;
-
-            //println!("left_total_limb_value = {:?}", left_total_limb_value.into_repr());
-            //println!("right_total_limb_value = {:?}", right_total_limb_value.into_repr());
 
             let carry_in_value = carry_in.value()?;
 
             let mut carry_value =
                 left_total_limb_value + &carry_in_value + &pad_limb - &right_total_limb_value;
-
-            //println!("left_total_limb_value + carry_in_value = {:?}", (left_total_limb_value + &carry_in_value).into_repr());
-            //println!("left_total_limb_value + carry_in_value + pad_limb = {:?}", (left_total_limb_value + &carry_in_value + &pad_limb).into_repr());
-            //println!("carry_value = {:?}", carry_value.into_repr());
 
             let mut carry_repr = carry_value.into_repr();
             carry_repr.divn((shift_per_limb * num_limb_in_this_group) as u32);
@@ -749,18 +741,10 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
             //      left_total_limb + pad_limb + carry_in - right_total_limb
             //   =  carry shift by (shift_per_limb * num_limb_in_this_group) + remainder
 
-            //println!("carry_in = {:?}", carry_in_value.into_repr());
-            //println!("carry = {:?}", carry_value.into_repr());
-
             let eqn_left = left_total_limb
                 .add_constant(pad_limb)
                 .add(&carry_in)
                 .sub(&right_total_limb);
-
-            //println!("left + pad = {:?}", left_total_limb.add_constant(pad_limb).value()?.into_repr());
-            //println!("left + pad + carry_in = {:?}", left_total_limb
-            //    .add_constant(pad_limb)
-            //    .add(&carry_in).value()?.into_repr());
 
             let eqn_right = carry
                 .mul_constant(
@@ -768,9 +752,6 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
                         .pow(&vec![(shift_per_limb * num_limb_in_this_group) as u64]),
                 )
                 .add_constant(remainder_limb);
-
-            //println!("left = {:?}", eqn_left.value()?.into_repr());
-            //println!("right = {:?}", eqn_right.value()?.into_repr());
 
             eqn_left.conditional_enforce_equal(&eqn_right, &Boolean::<BaseField>::TRUE)?;
 
@@ -789,8 +770,6 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
                 Reducer::<TargetField, BaseField>::limb_to_bits(&carry, surfeit + bits_per_limb)?;
             }
         }
-
-        println!("----------");
 
         Ok(())
     }

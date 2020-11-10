@@ -165,8 +165,6 @@ macro_rules! nonnative_bench {
             $bench_base_field
         );
         nonnative_bench_individual!(inverse, $bench_name, $bench_target_field, $bench_base_field);
-
-        println!("---------");
     };
 }
 

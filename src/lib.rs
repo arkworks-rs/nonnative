@@ -299,25 +299,36 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
     }
 
     /// Subtract a nonnative field element
-    #[tracing::instrument(target = "r1cs")]
     pub fn sub(&self, other: &Self) -> Result<Self, SynthesisError> {
         let params = get_params::<TargetField, BaseField>(&self.cs);
         let bits_per_limb = params.bits_per_limb;
 
         let surfeit = overhead!(other.num_of_additions_over_normal_form + BaseField::one()) + 1;
 
-        let mut pad_limb_repr: <BaseField as PrimeField>::BigInt = BaseField::one().into_repr();
-        pad_limb_repr.muln((surfeit + bits_per_limb) as u32);
-        let pad_limb = BaseField::from_repr(pad_limb_repr).unwrap();
+        let mut pad_non_top_limb_repr: <BaseField as PrimeField>::BigInt =
+            BaseField::one().into_repr();
+        pad_non_top_limb_repr.muln((surfeit + bits_per_limb) as u32);
+        let pad_non_top_limb = BaseField::from_repr(pad_non_top_limb_repr).unwrap();
+
+        let mut pad_top_limb_repr: <BaseField as PrimeField>::BigInt = BaseField::one().into_repr();
+        pad_top_limb_repr.muln(
+            (surfeit + (TargetField::size_in_bits() - bits_per_limb * (params.num_limbs - 1)))
+                as u32,
+        );
+        let pad_top_limb = BaseField::from_repr(pad_top_limb_repr).unwrap();
 
         let cs = self.cs().or(other.cs());
         assert!(cs != ConstraintSystemRef::None);
 
-        let allocated_pad_limb = AllocatedFp::<BaseField>::new_constant(cs.clone(), pad_limb)?;
+        let allocated_pad_non_top_limb =
+            AllocatedFp::<BaseField>::new_constant(cs.clone(), pad_non_top_limb)?;
+        let allocated_pad_top_limb =
+            AllocatedFp::<BaseField>::new_constant(cs.clone(), pad_top_limb)?;
 
         let mut allocated_pad_limbs = Vec::<AllocatedFp<BaseField>>::new();
-        for _ in 0..self.limbs.len() {
-            allocated_pad_limbs.push(allocated_pad_limb.clone());
+        allocated_pad_limbs.push(allocated_pad_top_limb);
+        for _ in 0..self.limbs.len() - 1 {
+            allocated_pad_limbs.push(allocated_pad_non_top_limb.clone());
         }
 
         let pad = AllocatedNonNativeFieldVar::<TargetField, BaseField> {
@@ -332,18 +343,28 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
         let pad_to_kp_limbs = Self::get_limbs_representations(&pad_to_kp_gap, Some(&self.cs))?;
 
         let mut limbs = Vec::<AllocatedFp<BaseField>>::new();
-        for ((this_limb, other_limb), pad_to_kp_limb) in self
+        for (i, ((this_limb, other_limb), pad_to_kp_limb)) in self
             .limbs
             .iter()
             .zip(other.limbs.iter())
             .zip(pad_to_kp_limbs.iter())
+            .enumerate()
         {
-            limbs.push(
-                this_limb
-                    .add_constant(pad_limb)
-                    .add_constant(*pad_to_kp_limb)
-                    .sub(other_limb),
-            );
+            if i != 0 {
+                limbs.push(
+                    this_limb
+                        .add_constant(pad_non_top_limb)
+                        .add_constant(*pad_to_kp_limb)
+                        .sub(other_limb),
+                );
+            } else {
+                limbs.push(
+                    this_limb
+                        .add_constant(pad_top_limb)
+                        .add_constant(*pad_to_kp_limb)
+                        .sub(other_limb),
+                );
+            }
         }
 
         let result = AllocatedNonNativeFieldVar::<TargetField, BaseField> {
@@ -589,20 +610,17 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
         let delta_bigint = limbs_to_bigint(params.bits_per_limb, &delta_limbs_values);
 
         let k = bigint_to_basefield::<BaseField>(&(delta_bigint / p_bigint));
+
         let k_gadget = AllocatedFp::<BaseField>::new_witness(cs.clone(), || Ok(k))?;
-        // k should be smaller than 2^ ((BaseField::size_in_bits() - 1) - bits_per_limb - 1)
-        // aka, k only has at most (BaseField::size_in_bits() - 1) - bits_per_limb - 1 bits.
-        Reducer::<TargetField, BaseField>::limb_to_bits(
-            &k_gadget,
-            (BaseField::size_in_bits() - 1) - params.bits_per_limb - 1,
-        )?;
+
+        let surfeit = overhead!(delta.num_of_additions_over_normal_form + BaseField::one()) + 1;
+
+        Reducer::<TargetField, BaseField>::limb_to_bits(&k_gadget, surfeit)?;
 
         let mut kp_gadget_limbs = Vec::new();
         for limb in &p_gadget.limbs {
             kp_gadget_limbs.push(limb.mul(&k_gadget));
         }
-
-        let surfeit = overhead!(delta.num_of_additions_over_normal_form + BaseField::one()) + 1;
 
         Reducer::<TargetField, BaseField>::group_and_check_equality(
             cs.clone(),
@@ -1419,24 +1437,12 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
                 Ok(r)
             })?;
 
-        println!("self = {:?}", self.actual_value());
-
-        println!("k = {:?}", value_bigint.clone() / p_bigint.clone());
-        println!("r = {:?}", value_bigint.clone() % p_bigint.clone());
-        println!(
-            "kp+r = {:?}",
-            (value_bigint.clone() / p_bigint.clone()) * p_bigint.clone()
-                + value_bigint.clone() % p_bigint.clone()
-        );
-
         let mut kp_plus_r_gadget = p_gadget.mul_without_reduce(&k_gadget)?;
         let kp_plus_r_limbs_len = kp_plus_r_gadget.limbs.len();
-        println!("kp_value = {:?}", kp_plus_r_gadget.actual_value());
         for (i, limb) in r_gadget.limbs.iter().rev().enumerate() {
             kp_plus_r_gadget.limbs[kp_plus_r_limbs_len - 1 - i] =
                 kp_plus_r_gadget.limbs[kp_plus_r_limbs_len - 1 - i].add(limb);
         }
-        println!("kp_plus_r_value = {:?}", kp_plus_r_gadget.actual_value());
 
         Reducer::<TargetField, BaseField>::group_and_check_equality(
             cs.clone(),
