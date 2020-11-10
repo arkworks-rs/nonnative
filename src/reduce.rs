@@ -658,7 +658,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
 
         let mut limb_pairs = Vec::<(AllocatedFp<BaseField>, AllocatedFp<BaseField>)>::new();
         let num_limb_in_a_group =
-            (BaseField::size_in_bits() - 1 - surfeit - 1 - (bits_per_limb - shift_per_limb))
+            (BaseField::size_in_bits() - 1 - surfeit - 1 - 1 - (bits_per_limb - shift_per_limb))
                 / shift_per_limb;
 
         let shift_array = {
@@ -711,7 +711,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
                 (surfeit
                     + (bits_per_limb - shift_per_limb)
                     + shift_per_limb * num_limb_in_this_group
-                    + 1) as u32,
+                    + 1 + 1) as u32,
             );
             let pad_limb = BaseField::from_repr(pad_limb_repr).unwrap();
 

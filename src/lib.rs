@@ -367,7 +367,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
             }
         }
 
-        let result = AllocatedNonNativeFieldVar::<TargetField, BaseField> {
+        let mut result = AllocatedNonNativeFieldVar::<TargetField, BaseField> {
             cs: cs,
             limbs: limbs,
             num_of_additions_over_normal_form: self.num_of_additions_over_normal_form
@@ -375,6 +375,9 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
             is_in_the_normal_form: false,
             target_phantom: PhantomData,
         };
+
+        Reducer::<TargetField, BaseField>::post_add_reduce(&mut result)?;
+
         Ok(result)
     }
 
