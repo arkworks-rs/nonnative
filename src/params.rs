@@ -4,7 +4,6 @@ use ark_relations::r1cs::ConstraintSystemRef;
 use ark_std::{
     any::{Any, TypeId},
     boxed::Box,
-    cmp::min,
     collections::BTreeMap,
 };
 
@@ -144,29 +143,48 @@ pub fn get_params<TargetField: PrimeField, BaseField: PrimeField>(
 /// Generate the new params
 #[must_use]
 pub fn gen_params<TargetField: PrimeField, BaseField: PrimeField>() -> NonNativeFieldParams {
-    let mut problem = ParamsSearching::new(BaseField::size_in_bits(), TargetField::size_in_bits());
+    let optimization_type = if cfg!(feature = "density-optimized") {
+        OptimizationType::Density
+    } else {
+        OptimizationType::Constraints
+    };
+
+    let mut problem = ParamsSearching::new(
+        BaseField::size_in_bits(),
+        TargetField::size_in_bits(),
+        optimization_type,
+    );
     problem.solve();
 
     NonNativeFieldParams {
-        num_limbs: problem.num_of_limbs,
+        num_limbs: problem.num_of_limbs.unwrap(),
         bits_per_limb: problem.limb_size.unwrap(),
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+/// The type of optimization target for the parameters searching
+pub enum OptimizationType {
+    /// Optimized for constraints
+    Constraints,
+    /// Optimized for density
+    Density,
+}
+
 /// A search instance for parameters for nonnative field gadgets
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ParamsSearching {
     // Problem
     /// Prime length of the base field
     pub base_field_prime_length: usize,
     /// Prime length of the target field
     pub target_field_prime_bit_length: usize,
+    /// Constraints or density
+    pub optimization_type: OptimizationType,
 
     // Solution
-    /// Number of additions as a result of multiplying
-    pub num_of_additions_after_mul: usize,
     /// Number of limbs
-    pub num_of_limbs: usize,
+    pub num_of_limbs: Option<usize>,
     /// Size of the limb
     pub limb_size: Option<usize>,
 }
@@ -174,95 +192,60 @@ pub struct ParamsSearching {
 impl ParamsSearching {
     /// Create the search problem
     #[must_use]
-    pub fn new(base_field_prime_length: usize, target_field_prime_bit_length: usize) -> Self {
+    pub fn new(
+        base_field_prime_length: usize,
+        target_field_prime_bit_length: usize,
+        optimization_type: OptimizationType,
+    ) -> Self {
         Self {
             base_field_prime_length,
             target_field_prime_bit_length,
-            num_of_additions_after_mul: 1,
-            num_of_limbs: 2,
+            optimization_type,
+            num_of_limbs: None,
             limb_size: None,
         }
     }
 
     /// Solve the search problem
     pub fn solve(&mut self) {
-        loop {
-            let Self {
-                base_field_prime_length,
-                target_field_prime_bit_length,
-                num_of_additions_after_mul,
-                num_of_limbs,
-                ..
-            } = self.clone();
+        let mut min_cost: Option<usize> = None;
+        let mut min_cost_limb_size: Option<usize> = None;
+        let mut min_cost_num_of_limbs: Option<usize> = None;
 
-            let mut min_overhead =
-                ((2 * num_of_limbs - 3) * (4 + ark_std::log2(num_of_limbs) as usize)) + 5;
-            if min_overhead > target_field_prime_bit_length {
-                min_overhead -= target_field_prime_bit_length;
-                min_overhead = ((2 * num_of_limbs - 3)
-                    * (4 + (ark_std::log2(num_of_limbs * min_overhead * min_overhead) as usize)))
-                    + 5;
+        let surfeit = 10;
 
-                if min_overhead > target_field_prime_bit_length {
-                    min_overhead -= target_field_prime_bit_length;
+        let max_limb_size = (self.base_field_prime_length - 1 - surfeit - 1) / 2;
 
-                    if (ark_std::log2(num_of_limbs * min_overhead * min_overhead) as usize) + 3
-                        >= base_field_prime_length
-                    {
-                        #[cfg(feature = "std")]
-                        dbg!(format!("The program has tested up to {} limbs; at this point, we can conclude that no suitable parameters exist", num_of_limbs));
-                        self.limb_size = None;
-                        return;
-                    }
-                }
+        for limb_size in 1..=max_limb_size {
+            let num_of_limbs = (self.target_field_prime_bit_length + limb_size - 1) / limb_size;
+
+            let group_size = (self.base_field_prime_length - 1 - surfeit - 1) / (2 * limb_size);
+            let num_of_groups = (2 * num_of_limbs - 1 + group_size - 1) / group_size;
+
+            let mut this_cost = 0;
+
+            if self.optimization_type == OptimizationType::Constraints {
+                this_cost += 2 * num_of_limbs - 1;
+            } else {
+                this_cost += num_of_limbs * num_of_limbs / 2;
             }
 
-            let overhead_limb = ark_std::log2(
-                1 + (num_of_additions_after_mul + 1)
-                    * (num_of_additions_after_mul + 1)
-                    * num_of_limbs,
-            ) as usize;
-
-            let mut flag = false;
-            let mut cost = 0usize;
-            let mut current_limb_size = None;
-
-            for limb_size in 0..min(base_field_prime_length, target_field_prime_bit_length) {
-                if limb_size * num_of_limbs < target_field_prime_bit_length {
-                    continue;
-                }
-
-                if 2 * (limb_size + 1) + overhead_limb >= base_field_prime_length - 1 {
-                    continue;
-                }
-
-                let this_cost = 2 * (limb_size + 1)
-                    + overhead_limb
-                    + limb_size
-                    + 1
-                    + (2 * num_of_limbs - 3) * (2 * (limb_size + 1) + overhead_limb)
-                    - target_field_prime_bit_length;
-
-                if !flag || this_cost < cost {
-                    flag = true;
-                    cost = this_cost;
-                    current_limb_size = Some(limb_size);
-                }
+            if self.optimization_type == OptimizationType::Constraints {
+                this_cost +=
+                    num_of_groups + (num_of_groups - 1) * (limb_size * 2 + 1 + 2 * surfeit) + 1;
+            } else {
+                this_cost +=
+                    3 * num_of_groups + (num_of_groups - 1) * (limb_size * 2 + 1 + 2 * surfeit) + 2;
             }
 
-            if !flag {
-                self.num_of_limbs += 1;
-                self.num_of_additions_after_mul = 1;
-                continue;
+            if min_cost == None || this_cost < min_cost.unwrap() {
+                min_cost = Some(this_cost);
+                min_cost_limb_size = Some(limb_size);
+                min_cost_num_of_limbs = Some(num_of_limbs);
             }
-
-            if cost > num_of_additions_after_mul {
-                self.num_of_additions_after_mul = cost;
-                continue;
-            }
-
-            self.limb_size = current_limb_size;
-            break;
         }
+
+        self.num_of_limbs = min_cost_num_of_limbs;
+        self.limb_size = min_cost_limb_size;
     }
 }

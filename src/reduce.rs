@@ -1,5 +1,5 @@
 use crate::params::get_params;
-use crate::{overhead, AllocatedNonNativeFieldVar, NonNativeFieldParams};
+use crate::{overhead, AllocatedNonNativeFieldVar};
 use ark_ff::{biginteger::BigInteger, fields::FpParameters, BitIteratorBE};
 use ark_ff::{One, PrimeField, Zero};
 use ark_r1cs_std::alloc::AllocVar;
@@ -8,15 +8,17 @@ use ark_r1cs_std::{
     boolean::{AllocatedBit, Boolean},
     R1CSVar,
 };
+use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 use ark_relations::{
     lc,
     r1cs::{LinearCombination, Result as R1CSResult},
 };
 use ark_std::{cmp::min, marker::PhantomData, vec, vec::Vec};
 use num_bigint::BigUint;
+use num_integer::Integer;
 
 pub fn limbs_to_bigint<BaseField: PrimeField>(
-    params: &NonNativeFieldParams,
+    bits_per_limb: usize,
     limbs: &[BaseField],
 ) -> BigUint {
     let mut val = BigUint::zero();
@@ -31,16 +33,13 @@ pub fn limbs_to_bigint<BaseField: PrimeField>(
             }
             small_cur *= 2u32;
         }
-        big_cur *= two.pow(params.bits_per_limb as u32);
+        big_cur *= two.pow(bits_per_limb as u32);
     }
 
     val
 }
 
-pub fn bigint_to_basefield<BaseField: PrimeField>(
-    _params: &NonNativeFieldParams,
-    bigint: &BigUint,
-) -> BaseField {
+pub fn bigint_to_basefield<BaseField: PrimeField>(bigint: &BigUint) -> BaseField {
     let mut val = BaseField::zero();
     let mut cur = BaseField::one();
     let bytes = bigint.to_bytes_be();
@@ -601,12 +600,12 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
         let (elem_pushed_to_the_top_limbs_value, elem_pushed_to_the_top_limbs_lc) =
             Self::push_to_the_top_keep_top(elem)?;
 
-        let elem_bigint = limbs_to_bigint(&params, &elem_pushed_to_the_top_limbs_value);
-        let normal_bigint = limbs_to_bigint(&params, &normal_form_representations);
-        let p_bigint = limbs_to_bigint(&params, &p_representations);
+        let elem_bigint =
+            limbs_to_bigint(params.bits_per_limb, &elem_pushed_to_the_top_limbs_value);
+        let normal_bigint = limbs_to_bigint(params.bits_per_limb, &normal_form_representations);
+        let p_bigint = limbs_to_bigint(params.bits_per_limb, &p_representations);
 
-        let k =
-            bigint_to_basefield::<BaseField>(&params, &((elem_bigint - normal_bigint) / p_bigint));
+        let k = bigint_to_basefield::<BaseField>(&((elem_bigint - normal_bigint) / p_bigint));
         let k_gadget = AllocatedFp::<BaseField>::new_witness(cs.clone(), || Ok(k))?;
 
         // k should be smaller than 2^ ((BaseField::size_in_bits() - 1) - bits_per_limb - 1)
@@ -643,6 +642,156 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
         elem.limbs = normal_form_gadget.limbs;
         elem.num_of_additions_over_normal_form = BaseField::zero();
         elem.is_in_the_normal_form = true;
+        Ok(())
+    }
+
+    /// Group and check equality
+    pub fn group_and_check_equality(
+        cs: ConstraintSystemRef<BaseField>,
+        surfeit: usize,
+        bits_per_limb: usize,
+        shift_per_limb: usize,
+        left: &[AllocatedFp<BaseField>],
+        right: &[AllocatedFp<BaseField>],
+    ) -> Result<(), SynthesisError> {
+        let zero = AllocatedFp::<BaseField>::new_constant(cs.clone(), BaseField::zero())?;
+
+        let mut limb_pairs = Vec::<(AllocatedFp<BaseField>, AllocatedFp<BaseField>)>::new();
+        let num_limb_in_a_group =
+            (BaseField::size_in_bits() - 1 - surfeit - 1 - (bits_per_limb - shift_per_limb))
+                / shift_per_limb;
+
+        let shift_array = {
+            let mut array = Vec::new();
+            let mut cur = BaseField::one().into_repr();
+            for _ in 0..num_limb_in_a_group {
+                array.push(BaseField::from_repr(cur.clone()).unwrap());
+                cur.muln(shift_per_limb as u32);
+            }
+
+            array
+        };
+
+        for (left_limb, right_limb) in left.iter().zip(right.iter()).rev() {
+            // note: the `rev` operation is here, so that the first limb (and the first groupped limb) will be the least significant limb.
+            limb_pairs.push((left_limb.clone(), right_limb.clone()));
+        }
+
+        let mut groupped_limb_pairs =
+            Vec::<(AllocatedFp<BaseField>, AllocatedFp<BaseField>, usize)>::new();
+
+        for limb_pairs_in_a_group in limb_pairs.chunks(num_limb_in_a_group) {
+            let mut left_total_limb = zero.clone();
+            let mut right_total_limb = zero.clone();
+
+            for ((left_limb, right_limb), shift) in
+                limb_pairs_in_a_group.iter().zip(shift_array.iter())
+            {
+                left_total_limb = left_total_limb.add(&left_limb.mul_constant(*shift));
+                right_total_limb = right_total_limb.add(&right_limb.mul_constant(*shift));
+            }
+
+            groupped_limb_pairs.push((
+                left_total_limb,
+                right_total_limb,
+                limb_pairs_in_a_group.len(),
+            ));
+        }
+
+        // This part we mostly use the techniques in bellman-bignat
+        // The following code is adapted from https://github.com/alex-ozdemir/bellman-bignat/blob/master/src/mp/bignat.rs#L567
+        let mut carry_in = zero.clone();
+        let mut accumulated_extra = BigUint::zero();
+        for (group_id, (left_total_limb, right_total_limb, num_limb_in_this_group)) in
+            groupped_limb_pairs.iter().enumerate()
+        {
+            let mut pad_limb_repr: <BaseField as PrimeField>::BigInt = BaseField::one().into_repr();
+            pad_limb_repr.muln(
+                (surfeit
+                    + (bits_per_limb - shift_per_limb)
+                    + shift_per_limb * num_limb_in_this_group
+                    + 1) as u32,
+            );
+            let pad_limb = BaseField::from_repr(pad_limb_repr).unwrap();
+
+            //println!("pad_limb = {:?}", pad_limb.into_repr());
+
+            let left_total_limb_value = left_total_limb.value()?;
+            let right_total_limb_value = right_total_limb.value()?;
+
+            //println!("left_total_limb_value = {:?}", left_total_limb_value.into_repr());
+            //println!("right_total_limb_value = {:?}", right_total_limb_value.into_repr());
+
+            let carry_in_value = carry_in.value()?;
+
+            let mut carry_value =
+                left_total_limb_value + &carry_in_value + &pad_limb - &right_total_limb_value;
+
+            //println!("left_total_limb_value + carry_in_value = {:?}", (left_total_limb_value + &carry_in_value).into_repr());
+            //println!("left_total_limb_value + carry_in_value + pad_limb = {:?}", (left_total_limb_value + &carry_in_value + &pad_limb).into_repr());
+            //println!("carry_value = {:?}", carry_value.into_repr());
+
+            let mut carry_repr = carry_value.into_repr();
+            carry_repr.divn((shift_per_limb * num_limb_in_this_group) as u32);
+
+            carry_value = BaseField::from_repr(carry_repr).unwrap();
+
+            let carry = AllocatedFp::<BaseField>::new_witness(cs.clone(), || Ok(carry_value))?;
+
+            accumulated_extra += limbs_to_bigint(bits_per_limb, &vec![pad_limb]);
+
+            let (new_accumulated_extra, remainder) = accumulated_extra.div_rem(
+                &BigUint::from(2u64).pow((shift_per_limb * num_limb_in_this_group) as u32),
+            );
+            let remainder_limb = bigint_to_basefield::<BaseField>(&remainder);
+
+            // Now check
+            //      left_total_limb + pad_limb + carry_in - right_total_limb
+            //   =  carry shift by (shift_per_limb * num_limb_in_this_group) + remainder
+
+            //println!("carry_in = {:?}", carry_in_value.into_repr());
+            //println!("carry = {:?}", carry_value.into_repr());
+
+            let eqn_left = left_total_limb
+                .add_constant(pad_limb)
+                .add(&carry_in)
+                .sub(&right_total_limb);
+
+            //println!("left + pad = {:?}", left_total_limb.add_constant(pad_limb).value()?.into_repr());
+            //println!("left + pad + carry_in = {:?}", left_total_limb
+            //    .add_constant(pad_limb)
+            //    .add(&carry_in).value()?.into_repr());
+
+            let eqn_right = carry
+                .mul_constant(
+                    BaseField::from(2u64)
+                        .pow(&vec![(shift_per_limb * num_limb_in_this_group) as u64]),
+                )
+                .add_constant(remainder_limb);
+
+            //println!("left = {:?}", eqn_left.value()?.into_repr());
+            //println!("right = {:?}", eqn_right.value()?.into_repr());
+
+            eqn_left.conditional_enforce_equal(&eqn_right, &Boolean::<BaseField>::TRUE)?;
+
+            accumulated_extra = new_accumulated_extra;
+            carry_in = carry.clone();
+
+            if group_id == groupped_limb_pairs.len() - 1 {
+                carry.conditional_enforce_equal(
+                    &AllocatedFp::<BaseField>::new_constant(
+                        cs.clone(),
+                        &bigint_to_basefield(&accumulated_extra),
+                    )?,
+                    &Boolean::<BaseField>::TRUE,
+                )?;
+            } else {
+                Reducer::<TargetField, BaseField>::limb_to_bits(&carry, surfeit + bits_per_limb)?;
+            }
+        }
+
+        println!("----------");
+
         Ok(())
     }
 }
