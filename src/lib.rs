@@ -61,8 +61,8 @@ use ark_relations::{
     },
 };
 use ark_std::{borrow::Borrow, cmp::max, fmt::Debug, marker::PhantomData, vec, vec::Vec};
-use num_bigint::BigUint;
 use core::hash::{Hash, Hasher};
+use num_bigint::BigUint;
 
 /// example parameters of non-native field gadget
 ///
