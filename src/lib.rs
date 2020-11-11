@@ -62,6 +62,7 @@ use ark_relations::{
 };
 use ark_std::{borrow::Borrow, cmp::max, fmt::Debug, marker::PhantomData, vec, vec::Vec};
 use num_bigint::BigUint;
+use core::hash::{Hash, Hasher};
 
 /// example parameters of non-native field gadget
 ///
@@ -143,6 +144,29 @@ pub enum NonNativeFieldVar<TargetField: PrimeField, BaseField: PrimeField> {
     Constant(TargetField),
     /// Allocated gadget
     Var(AllocatedNonNativeFieldVar<TargetField, BaseField>),
+}
+
+impl<TargetField: PrimeField, BaseField: PrimeField> PartialEq
+    for NonNativeFieldVar<TargetField, BaseField>
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.value()
+            .unwrap_or_default()
+            .eq(&other.value().unwrap_or_default())
+    }
+}
+
+impl<TargetField: PrimeField, BaseField: PrimeField> Eq
+    for NonNativeFieldVar<TargetField, BaseField>
+{
+}
+
+impl<TargetField: PrimeField, BaseField: PrimeField> Hash
+    for NonNativeFieldVar<TargetField, BaseField>
+{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.value().unwrap_or_default().hash(state);
+    }
 }
 
 impl<TargetField: PrimeField, BaseField: PrimeField> R1CSVar<BaseField>
