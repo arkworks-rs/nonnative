@@ -136,7 +136,7 @@ impl ParamsSearching {
 
         let surfeit = 10;
 
-        let max_limb_size = (self.base_field_prime_length - 1 - surfeit - 1) / 2;
+        let max_limb_size = (self.base_field_prime_length - 1 - surfeit - 1) / 2 - 1;
 
         for limb_size in 1..=max_limb_size {
             let num_of_limbs = (self.target_field_prime_bit_length + limb_size - 1) / limb_size;

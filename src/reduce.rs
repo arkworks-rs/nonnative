@@ -103,25 +103,31 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
         Ok(bits.into_iter().map(Boolean::from).collect())
     }
 
+    /// Reduction to the normal form
+    #[tracing::instrument(target = "r1cs")]
+    pub fn reduce(elem: &mut AllocatedNonNativeFieldVar<TargetField, BaseField>) -> R1CSResult<()> {
+        let new_elem =
+            AllocatedNonNativeFieldVar::new_witness(ns!(elem.cs, "normal_form"), || {
+                Ok(elem.value()?)
+            })?;
+        elem.conditional_enforce_equal(&new_elem, &Boolean::TRUE)?;
+        *elem = new_elem;
+
+        Ok(())
+    }
+
     /// Reduction to be enforced after additions
     #[tracing::instrument(target = "r1cs")]
     pub fn post_add_reduce(
         elem: &mut AllocatedNonNativeFieldVar<TargetField, BaseField>,
     ) -> R1CSResult<()> {
         let params = get_params::<TargetField, BaseField>(&elem.cs);
-        let log = overhead!(elem.num_of_additions_over_normal_form + BaseField::one()) + 1;
+        let surfeit = overhead!(elem.num_of_additions_over_normal_form + BaseField::one()) + 1;
 
-        if BaseField::size_in_bits() > params.bits_per_limb + log + 1 {
+        if BaseField::size_in_bits() > 2 * params.bits_per_limb + surfeit + 1 {
             Ok(())
         } else {
-            let new_elem =
-                AllocatedNonNativeFieldVar::new_witness(ns!(elem.cs, "normal_form"), || {
-                    Ok(elem.value()?)
-                })?;
-            new_elem.conditional_enforce_equal(elem, &Boolean::TRUE)?;
-            *elem = new_elem;
-
-            Ok(())
+            Self::reduce(elem)
         }
     }
 
@@ -139,33 +145,28 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
             panic!("The current limb parameters do not support multiplication.");
         }
 
-        let prod_of_num_of_additions = (elem.num_of_additions_over_normal_form + BaseField::one())
-            * (elem_other.num_of_additions_over_normal_form + BaseField::one());
-        let overhead_limb = overhead!(prod_of_num_of_additions.mul(
-            &BaseField::from_repr(<BaseField as PrimeField>::BigInt::from(
-                (params.num_limbs) as u64
-            ))
-            .unwrap()
-        ));
-        let bits_per_mulresult_limb = 2 * (params.bits_per_limb + 1) + overhead_limb;
+        loop {
+            let prod_of_num_of_additions = (elem.num_of_additions_over_normal_form
+                + BaseField::one())
+                * (elem_other.num_of_additions_over_normal_form + BaseField::one());
+            let overhead_limb = overhead!(prod_of_num_of_additions.mul(
+                &BaseField::from_repr(<BaseField as PrimeField>::BigInt::from(
+                    (params.num_limbs) as u64
+                ))
+                .unwrap()
+            ));
+            let bits_per_mulresult_limb = 2 * (params.bits_per_limb + 1) + overhead_limb;
 
-        while bits_per_mulresult_limb >= BaseField::size_in_bits() {
+            if bits_per_mulresult_limb < BaseField::size_in_bits() {
+                break;
+            }
+
             if elem.num_of_additions_over_normal_form
                 >= elem_other.num_of_additions_over_normal_form
             {
-                let new_elem = AllocatedNonNativeFieldVar::new_witness(
-                    ns!(elem.cs, "normal_form_of_elem"),
-                    || Ok(elem.value()?),
-                )?;
-                new_elem.conditional_enforce_equal(elem, &Boolean::TRUE)?;
-                *elem = new_elem;
+                Self::reduce(elem)?;
             } else {
-                let new_elem_other = AllocatedNonNativeFieldVar::new_witness(
-                    ns!(elem_other.cs, "normal_form_of_elem_other"),
-                    || Ok(elem_other.value()?),
-                )?;
-                new_elem_other.conditional_enforce_equal(elem_other, &Boolean::TRUE)?;
-                *elem_other = new_elem_other;
+                Self::reduce(elem_other)?;
             }
         }
 
@@ -189,13 +190,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
         if BaseField::size_in_bits() > params.bits_per_limb + log + 1 {
             Ok(())
         } else {
-            let new_elem =
-                AllocatedNonNativeFieldVar::new_witness(ns!(elem.cs, "normal_form"), || {
-                    Ok(elem.value()?)
-                })?;
-            new_elem.conditional_enforce_equal(elem, &Boolean::TRUE)?;
-            *elem = new_elem;
-            Ok(())
+            Self::reduce(elem)
         }
     }
 

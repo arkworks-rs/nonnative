@@ -306,12 +306,21 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
         Ok(res)
     }
 
-    /// Subtract a nonnative field element
+    /// Subtract a nonnative field element, without the final reduction step
     #[tracing::instrument(target = "r1cs")]
-    pub fn sub(&self, other: &Self) -> R1CSResult<Self> {
+    pub fn sub_without_reduce(&self, other: &Self) -> R1CSResult<Self> {
         let params = get_params::<TargetField, BaseField>(&self.cs);
         let bits_per_limb = params.bits_per_limb;
-        let surfeit = overhead!(other.num_of_additions_over_normal_form + BaseField::one()) + 1;
+
+        let mut surfeit = overhead!(other.num_of_additions_over_normal_form + BaseField::one()) + 1;
+        let mut other = other.clone();
+        if (surfeit + bits_per_limb > BaseField::size_in_bits() - 1)
+            || (surfeit + (TargetField::size_in_bits() - bits_per_limb * (params.num_limbs - 1))
+                > BaseField::size_in_bits() - 1)
+        {
+            Reducer::reduce(&mut other)?;
+            surfeit = overhead!(other.num_of_additions_over_normal_form + BaseField::one()) + 1;
+        }
 
         // Construct the pad
         let mut pad_non_top_limb_repr: <BaseField as PrimeField>::BigInt =
@@ -378,7 +387,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
             }
         }
 
-        let mut result = AllocatedNonNativeFieldVar::<TargetField, BaseField> {
+        let result = AllocatedNonNativeFieldVar::<TargetField, BaseField> {
             cs,
             limbs,
             num_of_additions_over_normal_form: self.num_of_additions_over_normal_form
@@ -388,8 +397,14 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
             target_phantom: PhantomData,
         };
 
-        Reducer::<TargetField, BaseField>::post_add_reduce(&mut result)?;
+        Ok(result)
+    }
 
+    /// Subtract a nonnative field element
+    #[tracing::instrument(target = "r1cs")]
+    pub fn sub(&self, other: &Self) -> R1CSResult<Self> {
+        let mut result = self.sub_without_reduce(other)?;
+        Reducer::<TargetField, BaseField>::post_add_reduce(&mut result)?;
         Ok(result)
     }
 
@@ -635,7 +650,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
         };
 
         // Get delta
-        let mut delta = self.sub(other)?;
+        let mut delta = self.sub_without_reduce(other)?;
         delta = should_enforce.select(
             &delta,
             &AllocatedNonNativeFieldVar::<TargetField, BaseField>::new_constant(

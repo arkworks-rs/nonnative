@@ -60,7 +60,7 @@ ark-mnt6-298 = { git = "https://github.com/arkworks-rs/curves", default-features
 ark-mnt6-753 = { git = "https://github.com/arkworks-rs/curves", default-features = false  }
 
 [features]
-default = ["std"]
+default = []
 density-optimized = []
 std = [ "ark-std/std", "ark-ff/std", "ark-ec/std", "ark-relations/std", "ark-r1cs-std/std", "num-traits/std", "num-bigint/std" ]
 
