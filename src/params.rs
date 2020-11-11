@@ -1,82 +1,10 @@
 use crate::NonNativeFieldParams;
 use ark_ff::PrimeField;
 use ark_relations::r1cs::ConstraintSystemRef;
-use ark_std::{
-    any::{Any, TypeId},
-    boxed::Box,
-    collections::BTreeMap,
-};
+use ark_std::{any::TypeId, boxed::Box, collections::BTreeMap};
 
 /// The type for a cache map for parameters
 pub type ParamsMap = BTreeMap<(usize, usize), NonNativeFieldParams>;
-#[derive(Clone)]
-/// Statistics for hit rate of cache
-pub struct HitRate {
-    /// Number of hits
-    hit: usize,
-    /// Number of misses
-    miss: usize,
-}
-
-impl HitRate {
-    /// Initialize and activate the statistics
-    pub fn init<BaseField: PrimeField>(cs: &ConstraintSystemRef<BaseField>) {
-        match cs {
-            ConstraintSystemRef::None => (),
-            ConstraintSystemRef::CS(v) => {
-                let cs_sys = v.borrow_mut();
-                let mut big_map = cs_sys.cache_map.borrow_mut();
-                big_map.insert(
-                    TypeId::of::<HitRate>(),
-                    Box::new(HitRate { hit: 0, miss: 0 }),
-                );
-            }
-        }
-    }
-
-    /// Add to the statistics
-    pub fn update(pmap: &mut BTreeMap<TypeId, Box<dyn Any>>, hit: bool) {
-        let hit_rate = pmap.get(&TypeId::of::<HitRate>());
-
-        if let Some(stat) = hit_rate.and_then(|rate| rate.downcast_ref::<HitRate>()) {
-            let mut hit_rate = (*stat).clone();
-            if hit {
-                hit_rate.hit += 1;
-            } else {
-                hit_rate.miss += 1;
-            }
-            pmap.insert(TypeId::of::<HitRate>(), Box::new(hit_rate));
-        }
-    }
-
-    /// Print out the statistics
-    #[cfg(feature = "std")]
-    pub fn print<BaseField: PrimeField>(cs: &ConstraintSystemRef<BaseField>) {
-        match cs {
-            ConstraintSystemRef::None => (),
-            ConstraintSystemRef::CS(v) => {
-                let cs_sys = v.borrow();
-                let big_map = cs_sys.cache_map.borrow();
-                let hit_rate = big_map.get(&TypeId::of::<HitRate>());
-
-                if hit_rate.is_some() {
-                    match hit_rate.unwrap().downcast_ref::<HitRate>() {
-                        Some(stat) => {
-                            let hit_rate = (*stat).clone();
-                            println!(
-                                "Hit: {}, Miss: {}, Hit Rate = {}",
-                                hit_rate.hit,
-                                hit_rate.miss,
-                                (hit_rate.hit as f64) / ((hit_rate.hit + hit_rate.miss) as f64)
-                            );
-                        }
-                        None => (),
-                    }
-                }
-            }
-        }
-    }
-}
 
 /// Obtain the parameters from a `ConstraintSystem`'s cache or generate a new one
 #[must_use]
@@ -94,9 +22,7 @@ pub fn get_params<TargetField: PrimeField, BaseField: PrimeField>(
                 if let Some(map) = small_map.downcast_ref::<ParamsMap>() {
                     let params = map.get(&(BaseField::size_in_bits(), TargetField::size_in_bits()));
                     if let Some(params) = params {
-                        let params = params.clone();
-                        HitRate::update(&mut *big_map, true);
-                        params
+                        params.clone()
                     } else {
                         let params = gen_params::<TargetField, BaseField>();
 
@@ -106,8 +32,6 @@ pub fn get_params<TargetField: PrimeField, BaseField: PrimeField>(
                             params.clone(),
                         );
                         big_map.insert(TypeId::of::<ParamsMap>(), Box::new(small_map));
-
-                        HitRate::update(&mut *big_map, false);
                         params
                     }
                 } else {
@@ -120,7 +44,6 @@ pub fn get_params<TargetField: PrimeField, BaseField: PrimeField>(
                     );
 
                     big_map.insert(TypeId::of::<ParamsMap>(), Box::new(small_map));
-                    HitRate::update(&mut *big_map, false);
                     params
                 }
             } else {
@@ -133,7 +56,6 @@ pub fn get_params<TargetField: PrimeField, BaseField: PrimeField>(
                 );
 
                 big_map.insert(TypeId::of::<ParamsMap>(), Box::new(small_map));
-                HitRate::update(&mut *big_map, false);
                 params
             }
         }
@@ -219,7 +141,9 @@ impl ParamsSearching {
         for limb_size in 1..=max_limb_size {
             let num_of_limbs = (self.target_field_prime_bit_length + limb_size - 1) / limb_size;
 
-            let group_size = (self.base_field_prime_length - 1 - surfeit - 1) / (2 * limb_size);
+            let group_size =
+                (self.base_field_prime_length - 1 - surfeit - 1 - 1 - limb_size + limb_size - 1)
+                    / limb_size;
             let num_of_groups = (2 * num_of_limbs - 1 + group_size - 1) / group_size;
 
             let mut this_cost = 0;
@@ -227,15 +151,26 @@ impl ParamsSearching {
             if self.optimization_type == OptimizationType::Constraints {
                 this_cost += 2 * num_of_limbs - 1;
             } else {
-                this_cost += num_of_limbs * num_of_limbs / 2;
+                this_cost += 6 * num_of_limbs * num_of_limbs;
             }
 
             if self.optimization_type == OptimizationType::Constraints {
-                this_cost +=
-                    num_of_groups + (num_of_groups - 1) * (limb_size * 2 + 1 + 2 * surfeit) + 1;
+                this_cost += self.target_field_prime_bit_length; // allocation of k
+                this_cost += self.target_field_prime_bit_length + num_of_limbs; // allocation of r
+                this_cost += num_of_groups + (num_of_groups - 1) * (limb_size * 2 + surfeit) + 1;
+            // equality check
             } else {
                 this_cost +=
-                    3 * num_of_groups + (num_of_groups - 1) * (limb_size * 2 + 1 + 2 * surfeit) + 2;
+                    self.target_field_prime_bit_length * 3 + self.target_field_prime_bit_length; // allocation of k
+                this_cost += self.target_field_prime_bit_length * 3
+                    + self.target_field_prime_bit_length
+                    + num_of_limbs; // allocation of r
+                this_cost += num_of_limbs * num_of_limbs + 2 * (2 * num_of_limbs - 1); // compute kp
+                this_cost += num_of_limbs
+                    + num_of_groups
+                    + 6 * num_of_groups
+                    + (num_of_groups - 1) * (2 * limb_size + surfeit) * 4
+                    + 2; // equality check
             }
 
             if min_cost == None || this_cost < min_cost.unwrap() {
