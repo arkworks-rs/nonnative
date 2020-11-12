@@ -184,14 +184,8 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
         if elem.is_in_the_normal_form {
             return Ok(());
         }
-
-        let log = overhead!(elem.num_of_additions_over_normal_form + BaseField::one()) + 1;
-
-        if BaseField::size_in_bits() > params.bits_per_limb + log + 1 {
-            Ok(())
-        } else {
-            Self::reduce(elem)
-        }
+        
+        Self::reduce(elem)
     }
 
     /// Group and check equality
