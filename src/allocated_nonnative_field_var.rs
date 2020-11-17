@@ -172,8 +172,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
         // Step 2: construct the padding
         let mut pad_non_top_limb_repr: <BaseField as PrimeField>::BigInt =
             BaseField::one().into_repr();
-        let mut pad_top_limb_repr: <BaseField as PrimeField>::BigInt =
-            pad_non_top_limb_repr;
+        let mut pad_top_limb_repr: <BaseField as PrimeField>::BigInt = pad_non_top_limb_repr;
 
         pad_non_top_limb_repr.muln((surfeit + params.bits_per_limb) as u32);
         let pad_non_top_limb = BaseField::from_repr(pad_non_top_limb_repr).unwrap();

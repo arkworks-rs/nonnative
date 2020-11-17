@@ -293,8 +293,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> Reducer<TargetField, BaseFi
             let eqn_left = left_total_limb + pad_limb + &carry_in - right_total_limb;
 
             let eqn_right = &carry
-                * BaseField::from(2u64)
-                    .pow(&[(shift_per_limb * num_limb_in_this_group) as u64])
+                * BaseField::from(2u64).pow(&[(shift_per_limb * num_limb_in_this_group) as u64])
                 + remainder_limb;
 
             eqn_left.conditional_enforce_equal(&eqn_right, &Boolean::<BaseField>::TRUE)?;
