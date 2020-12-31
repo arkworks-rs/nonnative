@@ -1,11 +1,11 @@
 use ark_ec::PairingEngine;
+use ark_ff::Zero;
 use ark_mnt4_298::MNT4_298;
 use ark_mnt6_298::MNT6_298;
 use ark_nonnative_field::NonNativeFieldVar;
 use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::{R1CSVar, ToBytesGadget, ToBitsGadget};
+use ark_r1cs_std::{R1CSVar, ToBitsGadget, ToBytesGadget};
 use ark_relations::r1cs::ConstraintSystem;
-use ark_ff::Zero;
 
 #[test]
 fn to_bytes_test() {

@@ -1,6 +1,6 @@
 use crate::{AllocatedNonNativeFieldVar, NonNativeFieldMulResultVar};
-use ark_ff::{to_bytes, FpParameters};
 use ark_ff::PrimeField;
+use ark_ff::{to_bytes, FpParameters};
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_r1cs_std::fields::FieldVar;
