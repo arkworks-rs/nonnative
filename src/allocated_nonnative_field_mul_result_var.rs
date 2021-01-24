@@ -34,10 +34,6 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
         limbs.resize(2 * params.num_limbs - 1, FpVar::<BaseField>::zero());
         limbs.reverse();
 
-        for limb in limbs.iter() {
-            println!("{:?}", limb.value().unwrap().into_repr());
-        }
-
         let prod_of_num_of_additions = src.num_of_additions_over_normal_form + &BaseField::one();
 
         Self {
