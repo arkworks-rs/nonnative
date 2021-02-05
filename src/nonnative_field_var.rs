@@ -456,7 +456,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> NonNativeFieldVar<TargetFie
     ) -> R1CSResult<NonNativeFieldMulResultVar<TargetField, BaseField>> {
         match self {
             Self::Constant(c) => match other {
-                Self::Constant(other_c) => Ok(NonNativeFieldMulResultVar::Constant(*c * other_c)?),
+                Self::Constant(other_c) => Ok(NonNativeFieldMulResultVar::Constant(*c * other_c)),
                 Self::Var(other_v) => {
                     let self_v =
                         AllocatedNonNativeFieldVar::<TargetField, BaseField>::new_constant(
