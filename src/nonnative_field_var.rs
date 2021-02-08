@@ -10,7 +10,7 @@ use ark_r1cs_std::{R1CSVar, ToConstraintFieldGadget};
 use ark_relations::r1cs::Result as R1CSResult;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::hash::{Hash, Hasher};
-use ark_std::{borrow::Borrow, vec, vec::Vec};
+use ark_std::{borrow::Borrow, vec::Vec};
 
 /// A gadget for representing non-native (`TargetField`) field elements over the constraint field (`BaseField`).
 #[derive(Clone, Debug)]
@@ -441,15 +441,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> ToConstraintFieldGadget<Bas
         // Use one group element to represent the optimization type.
         //
         // By default, the constant is converted in the weight-optimized type, because it results in fewer elements.
-        let mut res = vec![match self {
-            NonNativeFieldVar::Constant(_) => FpVar::Constant(BaseField::one()),
-            NonNativeFieldVar::Var(v) => match v.get_optimization_type() {
-                OptimizationType::Constraints => FpVar::Constant(BaseField::zero()),
-                OptimizationType::Weight => FpVar::Constant(BaseField::one()),
-            },
-        }];
-
-        let data = match self {
+        match self {
             Self::Constant(c) => Ok(AllocatedNonNativeFieldVar::get_limbs_representations(
                 c,
                 OptimizationType::Weight,
@@ -458,11 +450,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> ToConstraintFieldGadget<Bas
             .map(FpVar::constant)
             .collect()),
             Self::Var(v) => v.to_constraint_field(),
-        }?;
-
-        res.extend_from_slice(&data);
-
-        Ok(res)
+        }
     }
 }
 

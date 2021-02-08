@@ -807,7 +807,35 @@ impl<TargetField: PrimeField, BaseField: PrimeField> ToConstraintFieldGadget<Bas
     for AllocatedNonNativeFieldVar<TargetField, BaseField>
 {
     fn to_constraint_field(&self) -> R1CSResult<Vec<FpVar<BaseField>>> {
-        Ok(self.limbs.iter().cloned().map(FpVar::from).collect())
+        // provide a unique representation of the nonnative variable
+        // step 1: convert it into a bit sequence
+        let bits = self.to_bits_le()?;
+
+        // step 2: obtain the parameters for weight-optimized (often, fewer limbs)
+        let params = get_params(
+            TargetField::size_in_bits(),
+            BaseField::size_in_bits(),
+            OptimizationType::Weight,
+        );
+
+        // step 3: assemble the limbs
+        let mut limbs = bits
+            .chunks(params.bits_per_limb)
+            .map(|chunk| {
+                let mut limb = FpVar::<BaseField>::zero();
+                let mut w = BaseField::one();
+                for b in chunk.iter() {
+                    limb += FpVar::from(b.clone()) * w;
+                    w.double_in_place();
+                }
+                limb
+            })
+            .collect::<Vec<FpVar<BaseField>>>();
+
+        limbs.reverse();
+
+        // step 4: output the limbs
+        Ok(limbs)
     }
 }
 
