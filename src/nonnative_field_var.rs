@@ -1,3 +1,4 @@
+use crate::params::OptimizationType;
 use crate::{AllocatedNonNativeFieldVar, NonNativeFieldMulResultVar};
 use ark_ff::PrimeField;
 use ark_ff::{to_bytes, FpParameters};
@@ -9,7 +10,7 @@ use ark_r1cs_std::{R1CSVar, ToConstraintFieldGadget};
 use ark_relations::r1cs::Result as R1CSResult;
 use ark_relations::r1cs::{ConstraintSystemRef, Namespace, SynthesisError};
 use ark_std::hash::{Hash, Hasher};
-use ark_std::{borrow::Borrow, vec::Vec};
+use ark_std::{borrow::Borrow, vec, vec::Vec};
 
 /// A gadget for representing non-native (`TargetField`) field elements over the constraint field (`BaseField`).
 #[derive(Clone, Debug)]
@@ -437,13 +438,31 @@ impl<TargetField: PrimeField, BaseField: PrimeField> ToConstraintFieldGadget<Bas
 {
     #[tracing::instrument(target = "r1cs")]
     fn to_constraint_field(&self) -> R1CSResult<Vec<FpVar<BaseField>>> {
-        match self {
-            Self::Constant(c) => Ok(AllocatedNonNativeFieldVar::get_limbs_representations(c)?
-                .into_iter()
-                .map(FpVar::constant)
-                .collect()),
+        // Use one group element to represent the optimization type.
+        //
+        // By default, the constant is converted in the weight-optimized type, because it results in fewer elements.
+        let mut res = vec![match self {
+            NonNativeFieldVar::Constant(_) => FpVar::Constant(BaseField::one()),
+            NonNativeFieldVar::Var(v) => match v.get_optimization_type() {
+                OptimizationType::Constraints => FpVar::Constant(BaseField::zero()),
+                OptimizationType::Weight => FpVar::Constant(BaseField::one()),
+            },
+        }];
+
+        let data = match self {
+            Self::Constant(c) => Ok(AllocatedNonNativeFieldVar::get_limbs_representations(
+                c,
+                OptimizationType::Weight,
+            )?
+            .into_iter()
+            .map(FpVar::constant)
+            .collect()),
             Self::Var(v) => v.to_constraint_field(),
-        }
+        }?;
+
+        res.extend_from_slice(&data);
+
+        Ok(res)
     }
 }
 
