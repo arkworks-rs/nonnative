@@ -530,6 +530,81 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
             OptimizationGoal::Weight => OptimizationType::Weight,
         }
     }
+
+    /// Allocates a new non-native field variable with value given by the function `f`.  If `mode`
+    /// is [AllocationMode::Witness], then this function checks that the field element has value in
+    /// `[0, modulus)`, and returns the bits of its binary representation. The bits are in
+    /// little-endian (i.e., the bit at index 0 is the LSB) and the bit-vector is empty in
+    /// non-witness allocation modes.
+    pub fn new_variable_alloc_le_bits<T: Borrow<TargetField>>(
+        cs: impl Into<Namespace<BaseField>>,
+        f: impl FnOnce() -> Result<T, SynthesisError>,
+        mode: AllocationMode,
+    ) -> R1CSResult<(Self, Vec<Boolean<BaseField>>)> {
+        let ns = cs.into();
+        let cs = ns.cs();
+
+        let optimization_type = match cs.optimization_goal() {
+            OptimizationGoal::None => OptimizationType::Constraints,
+            OptimizationGoal::Constraints => OptimizationType::Constraints,
+            OptimizationGoal::Weight => OptimizationType::Weight,
+        };
+
+        let params = get_params(
+            TargetField::size_in_bits(),
+            BaseField::size_in_bits(),
+            optimization_type,
+        );
+        let zero = TargetField::zero();
+
+        let elem = match f() {
+            Ok(t) => *(t.borrow()),
+            Err(_) => zero,
+        };
+        let elem_representations = Self::get_limbs_representations(&elem, optimization_type)?;
+        let mut limbs = Vec::new();
+
+        for limb in elem_representations.iter() {
+            limbs.push(FpVar::<BaseField>::new_variable(
+                ark_relations::ns!(cs, "alloc"),
+                || Ok(limb),
+                mode,
+            )?);
+        }
+
+        let num_of_additions_over_normal_form = if mode != AllocationMode::Witness {
+            BaseField::zero()
+        } else {
+            BaseField::one()
+        };
+
+        let mut bits = Vec::new();
+
+        if mode == AllocationMode::Witness {
+            for limb in limbs.iter().rev().take(params.num_limbs - 1) {
+                bits.extend(Reducer::<TargetField, BaseField>::limb_to_bits(
+                    limb,
+                    params.bits_per_limb,
+                )?.into_iter().rev());
+            }
+
+            bits.extend(Reducer::<TargetField, BaseField>::limb_to_bits(
+                &limbs[0],
+                TargetField::size_in_bits() - (params.num_limbs - 1) * params.bits_per_limb,
+            )?.into_iter().rev());
+        }
+
+        Ok((
+            Self {
+                cs,
+                limbs,
+                num_of_additions_over_normal_form,
+                is_in_the_normal_form: mode != AllocationMode::Witness,
+                target_phantom: PhantomData,
+            },
+            bits,
+        ))
+    }
 }
 
 impl<TargetField: PrimeField, BaseField: PrimeField> ToBitsGadget<BaseField>
@@ -752,61 +827,8 @@ impl<TargetField: PrimeField, BaseField: PrimeField> AllocVar<TargetField, BaseF
         f: impl FnOnce() -> Result<T, SynthesisError>,
         mode: AllocationMode,
     ) -> R1CSResult<Self> {
-        let ns = cs.into();
-        let cs = ns.cs();
-
-        let optimization_type = match cs.optimization_goal() {
-            OptimizationGoal::None => OptimizationType::Constraints,
-            OptimizationGoal::Constraints => OptimizationType::Constraints,
-            OptimizationGoal::Weight => OptimizationType::Weight,
-        };
-
-        let params = get_params(
-            TargetField::size_in_bits(),
-            BaseField::size_in_bits(),
-            optimization_type,
-        );
-        let zero = TargetField::zero();
-
-        let elem = match f() {
-            Ok(t) => *(t.borrow()),
-            Err(_) => zero,
-        };
-        let elem_representations = Self::get_limbs_representations(&elem, optimization_type)?;
-        let mut limbs = Vec::new();
-
-        for limb in elem_representations.iter() {
-            limbs.push(FpVar::<BaseField>::new_variable(
-                ark_relations::ns!(cs, "alloc"),
-                || Ok(limb),
-                mode,
-            )?);
-        }
-
-        let num_of_additions_over_normal_form = if mode != AllocationMode::Witness {
-            BaseField::zero()
-        } else {
-            BaseField::one()
-        };
-
-        if mode == AllocationMode::Witness {
-            for limb in limbs.iter().rev().take(params.num_limbs - 1) {
-                Reducer::<TargetField, BaseField>::limb_to_bits(limb, params.bits_per_limb)?;
-            }
-
-            Reducer::<TargetField, BaseField>::limb_to_bits(
-                &limbs[0],
-                TargetField::size_in_bits() - (params.num_limbs - 1) * params.bits_per_limb,
-            )?;
-        }
-
-        Ok(Self {
-            cs,
-            limbs,
-            num_of_additions_over_normal_form,
-            is_in_the_normal_form: mode != AllocationMode::Witness,
-            target_phantom: PhantomData,
-        })
+        let (fv, _bits) = Self::new_variable_alloc_le_bits(cs, f, mode)?;
+        Ok(fv)
     }
 }
 
