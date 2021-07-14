@@ -582,16 +582,21 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
 
         if mode == AllocationMode::Witness {
             for limb in limbs.iter().rev().take(params.num_limbs - 1) {
-                bits.extend(Reducer::<TargetField, BaseField>::limb_to_bits(
-                    limb,
-                    params.bits_per_limb,
-                )?.into_iter().rev());
+                bits.extend(
+                    Reducer::<TargetField, BaseField>::limb_to_bits(limb, params.bits_per_limb)?
+                        .into_iter()
+                        .rev(),
+                );
             }
 
-            bits.extend(Reducer::<TargetField, BaseField>::limb_to_bits(
-                &limbs[0],
-                TargetField::size_in_bits() - (params.num_limbs - 1) * params.bits_per_limb,
-            )?.into_iter().rev());
+            bits.extend(
+                Reducer::<TargetField, BaseField>::limb_to_bits(
+                    &limbs[0],
+                    TargetField::size_in_bits() - (params.num_limbs - 1) * params.bits_per_limb,
+                )?
+                .into_iter()
+                .rev(),
+            );
         }
 
         Ok((
