@@ -582,9 +582,10 @@ impl<TargetField: PrimeField, BaseField: PrimeField>
     /// less than the modulus.
     ///
     /// Returns the bits of the element, in little-endian form
-    fn enforce_in_range(&self,
+    fn enforce_in_range(
+        &self,
         cs: impl Into<Namespace<BaseField>>,
-        ) -> R1CSResult<Vec<Boolean<BaseField>>> {
+    ) -> R1CSResult<Vec<Boolean<BaseField>>> {
         let ns = cs.into();
         let cs = ns.cs();
         let optimization_type = match cs.optimization_goal() {
