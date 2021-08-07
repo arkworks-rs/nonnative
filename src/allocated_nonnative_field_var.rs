@@ -855,7 +855,7 @@ impl<TargetField: PrimeField, BaseField: PrimeField> AllocVar<TargetField, BaseF
     ) -> R1CSResult<Self> {
         let ns = cs.into();
         let cs = ns.cs();
-        let this = Self::new_variable_unchecked(ns!(cs, "alloc"), f, AllocationMode::Witness)?;
+        let this = Self::new_variable_unchecked(ns!(cs, "alloc"), f, mode)?;
         if mode == AllocationMode::Witness {
             this.enforce_in_range(ns!(cs, "bits"))?;
         }
